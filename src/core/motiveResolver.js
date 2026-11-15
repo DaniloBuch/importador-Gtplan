@@ -3,18 +3,78 @@
  */
 
 export const INTENT_SLUGS = [
-  { slug: 'desc_entregue', label: 'Pedido Entregue' },
-  { slug: 'desc_faturado', label: 'Faturado / Em Rota' },
-  { slug: 'desc_faturamento', label: 'Em Faturamento' },
-  { slug: 'desc_na_data', label: 'Será Entregue na Data' },
-  { slug: 'desc_embalagem', label: 'Ajuste de Quantidade / Embalagem' },
-  { slug: 'desc_valor', label: 'Ajuste de Valor / Contrato' },
-  { slug: 'desc_falta', label: 'Item em Falta (Fabricante)' },
-  { slug: 'desc_indisponivel', label: 'Indisponibilidade de Estoque' },
-  { slug: 'desc_cancelado', label: 'Pedido Cancelado / Recusado' },
-  { slug: 'desc_nao_recebido', label: 'Pedido Não Recebido / Não Migrou' },
-  { slug: 'desc_descontinuado', label: 'Item Descontinuado' },
-  { slug: 'desc_fora_lt', label: 'Pedido Fora do Lead Time' }
+  {
+    slug: 'desc_entregue',
+    label: 'Pedido Entregue',
+    trigger: 'NF emitida e prazo de entrega (SLA + 3 dias) já vencido',
+    obsExample: 'dd/mm: Entregue, sob NF XXXXX'
+  },
+  {
+    slug: 'desc_faturado',
+    label: 'Faturado / Em Rota',
+    trigger: 'NF emitida no TOTVS e entrega dentro do prazo da loja',
+    obsExample: 'dd/mm: Entrega prevista para dd/mm'
+  },
+  {
+    slug: 'desc_faturamento',
+    label: 'Em Faturamento',
+    trigger: 'Pedido localizado no TOTVS, ainda sem NF emitida',
+    obsExample: 'dd/mm: Entrega prevista para dd/mm'
+  },
+  {
+    slug: 'desc_na_data',
+    label: 'Será Entregue na Data',
+    trigger: 'Sem NF e Data Entrega Original > 12 dias à frente',
+    obsExample: 'dd/mm: Entrega prevista para dd/mm'
+  },
+  {
+    slug: 'desc_embalagem',
+    label: 'Ajuste de Quantidade / Embalagem',
+    trigger: 'Qtd. Pendente não é múltipla da caixaria (Multiplicador)',
+    obsExample: 'dd/mm: Ajustar quantidade, item multiplo de X unidades'
+  },
+  {
+    slug: 'desc_valor',
+    label: 'Ajuste de Valor / Contrato',
+    trigger: 'Valor TOTVS > 3% acima do GTplan ou item Spot (SemContrato)',
+    obsExample: 'dd/mm: Ajustar valor para R$ X,XXXX (ou Item fora de contrato...)'
+  },
+  {
+    slug: 'desc_falta',
+    label: 'Item em Falta (Fabricante)',
+    trigger: 'Produto (BO)/(CA) sem saldo ou observação menciona fornecedor',
+    obsExample: 'dd/mm: Produto em falta / previsao dd/mm'
+  },
+  {
+    slug: 'desc_indisponivel',
+    label: 'Indisponibilidade de Estoque',
+    trigger: 'Sem saldo disponível no TOTVS e Bloq. Estoque 02 ou 03',
+    obsExample: 'dd/mm: Indisponibilidade de estoque / ruptura'
+  },
+  {
+    slug: 'desc_cancelado',
+    label: 'Pedido Cancelado / Recusado',
+    trigger: 'Sem NF e Obs contém "cancelado", "fora de contrato", "portfolio", "formalizacao"',
+    obsExample: 'Mantém a observação de cancelamento'
+  },
+  {
+    slug: 'desc_nao_recebido',
+    label: 'Pedido Não Recebido / Não Migrou',
+    trigger: 'Sem pedido/NF e Obs contém "migrou"',
+    obsExample: 'dd/mm: Pedido nao migrou no ARIBA'
+  },
+  {
+    slug: 'desc_descontinuado',
+    label: 'Item Descontinuado',
+    trigger: 'Observação contém "descontinuado"',
+    obsExample: 'Mantém a observação de descontinuação'
+  },
+  {
+    slug: 'desc_fora_lt',
+    label: 'Pedido Fora do Lead Time',
+    trigger: 'Com NF, porém Data Entrega Original menor que o SLA da loja',
+    obsExample: 'dd/mm: OC fora do leadtime, entrega prevista para dd/mm'
+  }
 ];
 
 export function normalizeText(str) {
@@ -343,5 +403,35 @@ export class MotiveResolver {
       matrix.push({ codCliente: cli, cliente: clientName, slugs, totalMotives: motives.length });
     }
     return matrix;
+  }
+
+  /**
+   * Versão tabular detalhada para a tela de Revisão de Motivos (1 linha por par Cliente x Intenção).
+   */
+  buildFlatReviewRows(clientCodes) {
+    const rows = [];
+    for (const rawCli of clientCodes) {
+      const cli = String(rawCli ?? '').trim();
+      const motives = this.getClientMotives(cli);
+      const clientName = this.getClientName(cli);
+      for (const intent of INTENT_SLUGS) {
+        const res = motives.length > 0
+          ? this.resolve(cli, intent.slug)
+          : { codigo: '', desc: '', confidence: 'missing', candidates: [] };
+        rows.push({
+          codCliente: cli,
+          cliente: clientName,
+          slug: intent.slug,
+          label: intent.label,
+          trigger: intent.trigger || '',
+          obsExample: intent.obsExample || '',
+          codigo: res.codigo,
+          desc: res.desc,
+          confidence: res.confidence,
+          candidates: res.candidates
+        });
+      }
+    }
+    return rows;
   }
 }

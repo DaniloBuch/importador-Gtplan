@@ -47,6 +47,7 @@ const toolbarStats = document.getElementById('toolbar-stats');
 
 const btnReviewBadge = document.getElementById('btn-review-count');
 const btnOpenReview = document.getElementById('btn-open-review');
+const btnOpenExplorer = document.getElementById('btn-open-explorer');
 const btnOpenAdmin = document.getElementById('btn-open-admin');
 const btnExportCsv = document.getElementById('btn-export-csv');
 const btnReprocessForce = document.getElementById('btn-reprocess-force');
@@ -458,6 +459,7 @@ inpSearch.addEventListener('input', () => {
 });
 
 btnOpenReview.addEventListener('click', () => adminModal.open('motives'));
+btnOpenExplorer.addEventListener('click', () => adminModal.open('explorer'));
 btnOpenAdmin.addEventListener('click', () => adminModal.open('rules'));
 btnReprocessForce.addEventListener('click', () => reprocessRows({ preserveEdited: false }));
 

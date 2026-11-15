@@ -70,6 +70,27 @@ export class TriageTableController {
       this.onRowUpdated(row, { skipFullRender: true });
     });
 
+    // Garante que qualquer observação editada manualmente mantenha o prefixo da data atual (dd/mm:)
+    this.tbodyEl.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target.dataset.field !== 'Observação') return;
+      const tr = target.closest('tr[data-row-index]');
+      if (!tr) return;
+      const row = this._findRow(Number(tr.dataset.rowIndex));
+      if (!row) return;
+
+      const body = stripDatePrefix(target.value);
+      if (!body) return;
+      const todayShort = formatShortBRDate(todayUtc());
+      const normalized = `${todayShort}: ${body}`;
+      if (target.value !== normalized) {
+        target.value = normalized;
+        row.output['Observação'] = normalized;
+        this._refreshObsSuggestion(tr, row);
+        this.onRowUpdated(row, { skipFullRender: true });
+      }
+    });
+
     this.tbodyEl.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
@@ -165,10 +186,7 @@ export class TriageTableController {
       <div class="floating-popover-head">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <strong>Inserir Frase Padrão</strong>
-          <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
-            <input type="checkbox" data-pop-prefix ${this.autoPrefixDate ? 'checked' : ''} />
-            Prefixo ${formatShortBRDate(todayUtc())}:
-          </label>
+          <span class="chip chip-info">Prefixo hoje: ${formatShortBRDate(todayUtc())}:</span>
         </div>
         <input type="text" class="cell-input" placeholder="Buscar frase padrão..." data-pop-search />
       </div>
@@ -180,12 +198,7 @@ export class TriageTableController {
     this.activePopover = pop;
 
     const searchInput = pop.querySelector('[data-pop-search]');
-    const prefixCheck = pop.querySelector('[data-pop-prefix]');
     const listEl = pop.querySelector('[data-pop-list]');
-
-    prefixCheck.addEventListener('change', () => {
-      this.autoPrefixDate = prefixCheck.checked;
-    });
 
     const renderList = (query = '') => {
       const q = query.trim().toLowerCase();
@@ -209,7 +222,7 @@ export class TriageTableController {
           const picked = filtered[Number(itemBtn.dataset.fraseIdx)];
           const todayShort = formatShortBRDate(todayUtc());
           const body = stripDatePrefix(picked.frase);
-          const nextObs = this.autoPrefixDate ? `${todayShort}: ${body}` : body;
+          const nextObs = `${todayShort}: ${body}`;
 
           row.output['Observação'] = nextObs;
           row.meta.editedByUser = true;

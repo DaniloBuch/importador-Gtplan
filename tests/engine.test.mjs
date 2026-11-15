@@ -107,6 +107,13 @@ test('motiveResolver: resolves exact client codes, flags duplicates for review, 
   // Inferência livre de texto
   assert.equal(inferSlugFromObservationText('15/11: Pedido não migrou no ARIBA'), 'desc_nao_recebido');
   assert.equal(inferSlugFromObservationText('Produto fora de linha descontinuado'), 'desc_descontinuado');
+
+  // Matriz tabular detalhada para tela de Revisão de Motivos
+  const flatRows = resolver.buildFlatReviewRows(['33']);
+  assert.equal(flatRows.length, 12);
+  assert.ok(flatRows[0].trigger.length > 0);
+  assert.ok(flatRows[0].obsExample.length > 0);
+  assert.equal(flatRows[0].codCliente, '33');
 });
 
 test('ruleEngine: handles Dasa rules (OC fallback, Santa Helena +2d, Santa Joana short obs, Caixaria, 3% Valor, Spot, Anti-Repetition)', () => {

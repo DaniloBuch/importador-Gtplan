@@ -1,4 +1,5 @@
 import { INTENT_SLUGS, normalizeText } from '../core/motiveResolver.js';
+import { formatShortBRDate, todayUtc } from '../core/dates.js';
 import { parseCsvLine } from '../core/csv.js';
 import { readWorkbookSheets, rowsToObjects } from '../core/xlsxReader.js';
 
@@ -40,6 +41,12 @@ export class AdminModalController {
     this.activeTab = 'motives';
     this.prefillDePara = null;
     this.onlyReviewFilter = false;
+    this.motiveClientFilter = '';
+    this.motiveSearchQuery = '';
+    this.explorerSubTab = 'itens';
+    this.explorerSearch = '';
+    this.explorerClientFilter = '';
+    this.explorerPage = 1;
 
     this._bindEvents();
   }
@@ -78,19 +85,36 @@ export class AdminModalController {
     else if (this.activeTab === 'rules') this._renderRulesTab();
     else if (this.activeTab === 'depara') this._renderDeParaFrasesTab();
     else if (this.activeTab === 'bases') this._renderBasesBackupTab();
+    else if (this.activeTab === 'explorer') this._renderExplorerTab();
   }
 
   _renderMotivesTab() {
     const config = this.getConfig();
     const resolver = this.getMotiveResolver();
     const loadedClients = this.getLoadedClients();
-    const targetClients = loadedClients.length > 0 ? loadedClients : Array.from(resolver.byClient.keys()).slice(0, 12);
+    const allDictClients = Array.from(resolver.byClient.keys()).sort((a, b) => Number(a) - Number(b));
+    const targetClients = loadedClients.length > 0 ? loadedClients : allDictClients.slice(0, 12);
 
-    const matrix = resolver.buildReviewMatrix(targetClients);
-    const filtered = this.onlyReviewFilter
-      ? matrix.filter((m) => m.confidence === 'review' || m.confidence === 'suggested' || m.confidence === 'missing')
-      : matrix;
+    const flatRows = resolver.buildFlatReviewRows(targetClients);
+    const frasesBySlug = new Map();
+    for (const f of config.frases || []) {
+      if (!f.slug) continue;
+      if (!frasesBySlug.has(f.slug)) frasesBySlug.set(f.slug, []);
+      frasesBySlug.get(f.slug).push(f.frase);
+    }
 
+    const q = this.motiveSearchQuery.trim().toLowerCase();
+    const filtered = flatRows.filter((m) => {
+      if (this.motiveClientFilter && m.codCliente !== this.motiveClientFilter) return false;
+      if (this.onlyReviewFilter && !['review', 'suggested', 'missing'].includes(m.confidence)) return false;
+      if (q) {
+        const hay = `${m.codCliente} ${m.cliente} ${m.label} ${m.slug} ${m.trigger} ${m.obsExample} ${m.codigo} ${m.desc}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const todayShort = formatShortBRDate(todayUtc());
     const statusBadge = {
       confirmed: '<span class="chip chip-success">Confirmado</span>',
       exact: '<span class="chip chip-success">Exato</span>',
@@ -99,65 +123,106 @@ export class AdminModalController {
       missing: '<span class="chip chip-danger">Ausente</span>'
     };
 
+    const clientOptions = [
+      `<option value="">Todos (${targetClients.length} clientes)</option>`,
+      ...targetClients.map((c) => {
+        const name = resolver.getClientName(c);
+        return `<option value="${esc(c)}" ${c === this.motiveClientFilter ? 'selected' : ''}>${esc(c)} — ${esc(name || 'Cliente')}</option>`;
+      })
+    ].join('');
+
     this.bodyEl.innerHTML = `
+      <div style="border:1px solid #bae6fd;background:#f0f9ff;padding:10px 12px;border-radius:8px;font-size:12px;">
+        <strong>Como funciona a Revisão de Motivos:</strong> Para cada <strong>Situação</strong> abaixo, o motor verifica o pedido no TOTVS/CSV, gera a <strong>Observação</strong> padrão (sempre com o prefixo da data atual <span class="mono">${todayShort}:</span>) e aplica o código de <strong>Motivo</strong> do respectivo cliente. Alterações feitas aqui são salvas no IndexedDB local para os próximos envios.
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div>
-          <strong>Matriz de Motivos por Cliente</strong>
-          <div class="sub-line">
-            ${loadedClients.length > 0 ? `Exibindo ${loadedClients.length} cliente(s) do CSV carregado.` : 'Nenhum CSV carregado: exibindo amostra de clientes do dicionário.'}
-            Ao confirmar ou alterar um código, o sistema aprende permanentemente para esse cliente.
-          </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+          <select id="sel-motive-client" class="cell-input" style="width:230px;">${clientOptions}</select>
+          <input type="text" id="inp-motive-search" class="cell-input" style="width:240px;" value="${esc(this.motiveSearchQuery)}" placeholder="Filtrar situação, observação ou motivo..." />
         </div>
         <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="checkbox" id="chk-only-review" ${this.onlyReviewFilter ? 'checked' : ''} />
-          Mostrar apenas Sugestões / Revisão / Ausentes
+          Mostrar apenas Revisão / Sugeridos / Ausentes
         </label>
       </div>
 
-      <div style="max-height:420px;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;">
+      <div style="max-height:430px;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;">
         <table class="triage-table">
           <thead>
             <tr>
               <th>Cliente</th>
-              <th>Intenção (Slug)</th>
+              <th>Situação / Regra</th>
+              <th>Quando Aplica &amp; Observação Gerada</th>
               <th>Status</th>
-              <th>Motivo Selecionado no Cliente</th>
+              <th>Motivo Selecionado no Portal</th>
             </tr>
           </thead>
           <tbody>
-            ${filtered
-              .map((item) => {
-                const clientMotives = resolver.getClientMotives(item.codCliente);
-                const opts = [
-                  '<option value="">-- Nenhum / Manual --</option>',
-                  ...clientMotives.map(
-                    (cm) =>
-                      `<option value="${esc(cm.codigo)}" ${cm.codigo === item.codigo ? 'selected' : ''}>${esc(cm.codigo)} — ${esc(cm.desc)}</option>`
-                  )
-                ].join('');
-                return `
-                  <tr>
-                    <td>
-                      <span class="chip chip-neutral mono">${esc(item.codCliente)}</span>
-                      <div class="sub-line">${esc(item.cliente)}</div>
-                    </td>
-                    <td>
-                      <strong>${esc(item.label)}</strong>
-                      <div class="sub-line mono">${esc(item.slug)}</div>
-                    </td>
-                    <td>${statusBadge[item.confidence] || ''}</td>
-                    <td>
-                      <select class="cell-input" data-motive-override data-cli="${esc(item.codCliente)}" data-slug="${esc(item.slug)}">
-                        ${opts}
-                      </select>
-                    </td>
-                  </tr>`;
-              })
-              .join('')}
+            ${
+              filtered.length === 0
+                ? '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:24px;">Nenhuma regra corresponde ao filtro atual.</td></tr>'
+                : filtered
+                    .map((item) => {
+                      const clientMotives = resolver.getClientMotives(item.codCliente);
+                      const frasesSlug = frasesBySlug.get(item.slug) || [];
+                      const obsFormatted = item.obsExample.replace(/^dd\/mm:/, `${todayShort}:`);
+                      const opts = [
+                        '<option value="">-- Nenhum / Manual --</option>',
+                        ...clientMotives.map(
+                          (cm) =>
+                            `<option value="${esc(cm.codigo)}" ${cm.codigo === item.codigo ? 'selected' : ''}>${esc(cm.codigo)} — ${esc(cm.desc)}</option>`
+                        )
+                      ].join('');
+                      return `
+                        <tr>
+                          <td style="min-width:130px;">
+                            <span class="chip chip-neutral mono">${esc(item.codCliente)}</span>
+                            <div class="sub-line">${esc(item.cliente)}</div>
+                          </td>
+                          <td style="min-width:160px;">
+                            <strong>${esc(item.label)}</strong>
+                            <div class="sub-line mono">${esc(item.slug)}</div>
+                          </td>
+                          <td style="min-width:270px;max-width:340px;">
+                            <div><strong>Quando:</strong> ${esc(item.trigger)}</div>
+                            <div class="sub-line"><strong>Obs:</strong> <span class="mono">${esc(obsFormatted)}</span></div>
+                            ${
+                              frasesSlug.length > 0
+                                ? `<div class="sub-line" title="${esc(frasesSlug.join(' | '))}"><strong>Frases vinculadas:</strong> ${esc(frasesSlug.slice(0, 2).join(' • '))}${frasesSlug.length > 2 ? ` (+${frasesSlug.length - 2})` : ''}</div>`
+                                : ''
+                            }
+                          </td>
+                          <td>${statusBadge[item.confidence] || ''}</td>
+                          <td style="min-width:230px;">
+                            <select class="cell-input" data-motive-override data-cli="${esc(item.codCliente)}" data-slug="${esc(item.slug)}">
+                              ${opts}
+                            </select>
+                          </td>
+                        </tr>`;
+                    })
+                    .join('')
+            }
           </tbody>
         </table>
       </div>
     `;
+
+    this.bodyEl.querySelector('#sel-motive-client').addEventListener('change', (e) => {
+      this.motiveClientFilter = e.target.value;
+      this.render();
+    });
+
+    this.bodyEl.querySelector('#inp-motive-search').addEventListener('input', (e) => {
+      this.motiveSearchQuery = e.target.value;
+      const caret = e.target.selectionStart;
+      this.render();
+      const el = this.bodyEl.querySelector('#inp-motive-search');
+      if (el) {
+        el.focus();
+        el.setSelectionRange(caret, caret);
+      }
+    });
 
     this.bodyEl.querySelector('#chk-only-review').addEventListener('change', (e) => {
       this.onlyReviewFilter = e.target.checked;
@@ -196,7 +261,7 @@ export class AdminModalController {
       </div>
 
       <div>
-        <strong>Regras Personalizadas por Cód. Cliente ou Estabelecimento</strong>
+        <strong>Tempo de entrega e/ou agendamento por Cliente ou Estabelecimento</strong>
         <form id="form-add-rule" class="form-grid" style="margin-top:8px;">
           <div class="form-field">
             <label>Escopo</label>
@@ -327,6 +392,10 @@ export class AdminModalController {
     const pre = this.prefillDePara || {};
 
     this.bodyEl.innerHTML = `
+      <div style="border:1px solid #bae6fd;background:#f0f9ff;padding:10px 12px;border-radius:8px;font-size:12px;">
+        <strong>Onde estes dados ficam salvos?</strong> Todos os vínculos de <strong>De-Para Customizado</strong>, <strong>Frases Padrão</strong>, <strong>Revisões de Motivos</strong> e <strong>Tempo de entrega/agendamento</strong> são gravados automaticamente no banco local do seu navegador (<strong>IndexedDB</strong> → banco <span class="mono">gtplan_followup_db</span>, store <span class="mono">kv_store</span>, chave <span class="mono">app_config_v1</span>) e já ficam prontos para migração futura para banco de dados via <span class="mono">repository.js</span>. Para copiar para outro PC, use <strong>Exportar Backup JSON</strong> na aba <em>Importar Bases &amp; Backup</em>.
+      </div>
+
       <div>
         <strong>De-Para Customizado (Vínculo Rápido de Itens fora da planilha todasBases)</strong>
         <form id="form-add-depara" class="form-grid" style="margin-top:8px;">
@@ -574,6 +643,188 @@ export class AdminModalController {
     this.bodyEl.querySelector('#btn-reset-seed').addEventListener('click', async () => {
       await this.onResetConfig();
       this.showToast('Configurações restauradas ao padrão inicial.');
+      this.render();
+    });
+  }
+
+  _renderExplorerTab() {
+    const config = this.getConfig();
+    const customItems = (config.customDePara || []).map((d) => ({ ...d, source: 'Customizado' }));
+    const baseItems = (config.todasBases || []).map((b) => ({ ...b, source: 'todasBases' }));
+    const allItems = [...customItems, ...baseItems];
+
+    const motivos = config.motivos || [];
+    const hospitais = config.hospitais || [];
+    const frases = config.frases || [];
+    const leadtimeEntries = Object.entries(config.leadtimeUF || {});
+
+    const clientMap = new Map();
+    for (const m of motivos) {
+      if (m.codCliente && !clientMap.has(m.codCliente)) {
+        clientMap.set(m.codCliente, m.cliente || '');
+      }
+    }
+
+    const q = this.explorerSearch.trim().toLowerCase();
+    let rows = [];
+    let columnsHtml = '';
+    let renderRowHtml = () => '';
+
+    if (this.explorerSubTab === 'itens') {
+      rows = allItems.filter((it) => {
+        if (!q) return true;
+        return `${it.codCliente || ''} ${it.codSap || ''} ${it.codItem || ''} ${it.descItem || ''} ${it.codCBS || ''} ${it.descCBS || ''}`
+          .toLowerCase()
+          .includes(q);
+      });
+      columnsHtml = '<th>Origem</th><th>Cliente</th><th>Cód. GTplan / SAP</th><th>Desc. Item</th><th>Cód. CBS</th><th>Mult.</th>';
+      renderRowHtml = (it) => `
+        <tr>
+          <td><span class="chip ${it.source === 'Customizado' ? 'chip-info' : 'chip-neutral'}">${esc(it.source)}</span></td>
+          <td class="mono">${esc(it.codCliente || 'Todos')}</td>
+          <td class="mono"><strong>${esc(it.codItem)}</strong>${it.codSap ? `<div class="sub-line">SAP: ${esc(it.codSap)}</div>` : ''}</td>
+          <td>${esc(it.descItem)}${it.descCBS ? `<div class="sub-line">CBS: ${esc(it.descCBS)}</div>` : ''}</td>
+          <td class="mono"><strong>${esc(it.codCBS)}</strong></td>
+          <td class="mono">${it.mult ?? 1}</td>
+        </tr>`;
+    } else if (this.explorerSubTab === 'motivos') {
+      rows = motivos.filter((m) => {
+        if (this.explorerClientFilter && m.codCliente !== this.explorerClientFilter) return false;
+        if (!q) return true;
+        return `${m.codCliente} ${m.cliente} ${m.codigo} ${m.desc}`.toLowerCase().includes(q);
+      });
+      columnsHtml = '<th>Cód. Cliente</th><th>Cliente</th><th>Código GTplan</th><th>Descrição do Motivo no Portal</th>';
+      renderRowHtml = (m) => `
+        <tr>
+          <td class="mono"><span class="chip chip-neutral">${esc(m.codCliente)}</span></td>
+          <td>${esc(m.cliente)}</td>
+          <td class="mono"><strong>${esc(m.codigo)}</strong></td>
+          <td>${esc(m.desc)}</td>
+        </tr>`;
+    } else if (this.explorerSubTab === 'hospitais') {
+      rows = hospitais.filter((h) => {
+        if (!q) return true;
+        return `${h.estab} ${h.nome} ${h.codCliente} ${h.loja} ${h.uf}`.toLowerCase().includes(q);
+      });
+      columnsHtml = '<th>Estabelecimento (Estab.)</th><th>Nome / Razão</th><th>Cliente | Loja TOTVS</th><th>UF</th><th>SLA (dias úteis)</th>';
+      renderRowHtml = (h) => `
+        <tr>
+          <td><strong>${esc(h.estab)}</strong></td>
+          <td>${esc(h.nome)}</td>
+          <td class="mono">${esc(h.codCliente)} | ${esc(h.loja)}</td>
+          <td class="mono">${esc(h.uf)}</td>
+          <td class="mono"><strong>${esc(h.sla)}</strong></td>
+        </tr>`;
+    } else {
+      rows = [
+        ...frases.map((f) => ({ tipo: 'Frase Padrão', texto: f.frase, slug: f.slug || '(livre)' })),
+        ...(config.motiveSlugMap || []).map((m) => ({ tipo: 'Mapa Parametros', texto: m.desc, slug: m.slug }))
+      ].filter((r) => !q || `${r.tipo} ${r.texto} ${r.slug}`.toLowerCase().includes(q));
+      columnsHtml = '<th>Tipo</th><th>Descrição / Frase</th><th>Intenção (Slug)</th>';
+      renderRowHtml = (r) => `
+        <tr>
+          <td><span class="chip ${r.tipo === 'Frase Padrão' ? 'chip-info' : 'chip-neutral'}">${esc(r.tipo)}</span></td>
+          <td>${esc(r.texto)}</td>
+          <td class="mono">${esc(r.slug)}</td>
+        </tr>`;
+    }
+
+    const pageSize = 50;
+    const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+    this.explorerPage = Math.max(1, Math.min(this.explorerPage, totalPages));
+    const start = (this.explorerPage - 1) * pageSize;
+    const pageRows = rows.slice(start, start + pageSize);
+
+    const clientOpts = this.explorerSubTab === 'motivos'
+      ? `
+        <select id="exp-client-filter" class="cell-input" style="width:230px;">
+          <option value="">Todos os clientes (${clientMap.size})</option>
+          ${Array.from(clientMap.entries())
+            .sort((a, b) => Number(a[0]) - Number(b[0]))
+            .map(([cod, nm]) => `<option value="${esc(cod)}" ${cod === this.explorerClientFilter ? 'selected' : ''}>${esc(cod)} — ${esc(nm)}</option>`)
+            .join('')}
+        </select>`
+      : '';
+
+    const ufSummary = this.explorerSubTab === 'hospitais'
+      ? `<div class="chip-stack"><strong>Leadtime padrão por UF:</strong> ${leadtimeEntries.map(([uf, s]) => `<span class="chip chip-neutral mono">${esc(uf)}: ${s}d</span>`).join('')}</div>`
+      : '';
+
+    this.bodyEl.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <button type="button" class="btn btn-xs ${this.explorerSubTab === 'itens' ? 'btn-primary' : ''}" data-exp-sub="itens">Itens De-Para (${allItems.length})</button>
+        <button type="button" class="btn btn-xs ${this.explorerSubTab === 'motivos' ? 'btn-primary' : ''}" data-exp-sub="motivos">Motivos por Cliente (${motivos.length})</button>
+        <button type="button" class="btn btn-xs ${this.explorerSubTab === 'hospitais' ? 'btn-primary' : ''}" data-exp-sub="hospitais">Hospitais / Lojas (${hospitais.length})</button>
+        <button type="button" class="btn btn-xs ${this.explorerSubTab === 'frases' ? 'btn-primary' : ''}" data-exp-sub="frases">Frases &amp; Mapeamentos (${frases.length + (config.motiveSlugMap?.length || 0)})</button>
+      </div>
+
+      ${ufSummary}
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+        <input type="text" id="exp-search" class="cell-input" style="flex:1;min-width:220px;" value="${esc(this.explorerSearch)}" placeholder="Pesquisar na base selecionada..." />
+        ${clientOpts}
+        <span class="sub-line">${rows.length.toLocaleString('pt-BR')} registro(s) encontrado(s)</span>
+      </div>
+
+      <div style="max-height:380px;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;">
+        <table class="triage-table">
+          <thead><tr>${columnsHtml}</tr></thead>
+          <tbody>
+            ${
+              pageRows.length === 0
+                ? '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px;">Nenhum registro encontrado.</td></tr>'
+                : pageRows.map(renderRowHtml).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination-bar" style="border-radius:8px;border:1px solid var(--border-soft);">
+        <div>Exibindo <strong>${rows.length === 0 ? 0 : start + 1}</strong>–<strong>${Math.min(start + pageRows.length, rows.length)}</strong> de <strong>${rows.length}</strong></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button type="button" class="btn btn-xs" id="exp-prev" ${this.explorerPage <= 1 ? 'disabled' : ''}>← Anterior</button>
+          <span>Página ${this.explorerPage} de ${totalPages}</span>
+          <button type="button" class="btn btn-xs" id="exp-next" ${this.explorerPage >= totalPages ? 'disabled' : ''}>Próxima →</button>
+        </div>
+      </div>
+    `;
+
+    this.bodyEl.querySelectorAll('[data-exp-sub]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.explorerSubTab = btn.dataset.expSub;
+        this.explorerPage = 1;
+        this.explorerSearch = '';
+        this.render();
+      });
+    });
+
+    this.bodyEl.querySelector('#exp-search').addEventListener('input', (e) => {
+      this.explorerSearch = e.target.value;
+      this.explorerPage = 1;
+      const caret = e.target.selectionStart;
+      this.render();
+      const el = this.bodyEl.querySelector('#exp-search');
+      if (el) {
+        el.focus();
+        el.setSelectionRange(caret, caret);
+      }
+    });
+
+    const cliSel = this.bodyEl.querySelector('#exp-client-filter');
+    if (cliSel) {
+      cliSel.addEventListener('change', () => {
+        this.explorerClientFilter = cliSel.value;
+        this.explorerPage = 1;
+        this.render();
+      });
+    }
+
+    this.bodyEl.querySelector('#exp-prev').addEventListener('click', () => {
+      this.explorerPage--;
+      this.render();
+    });
+    this.bodyEl.querySelector('#exp-next').addEventListener('click', () => {
+      this.explorerPage++;
       this.render();
     });
   }
