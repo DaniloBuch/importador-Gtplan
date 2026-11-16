@@ -78,8 +78,18 @@ export class AdminModalController {
 
   render() {
     this.tabsEl.querySelectorAll('[data-tab]').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.tab === this.activeTab);
+      const active = btn.dataset.tab === this.activeTab;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', String(active));
     });
+    const titles = {
+      motives: 'Revisão de Motivos por Cliente',
+      rules: 'Prazos de Entrega & Feriados',
+      depara: 'De-Para Customizado & Frases Padrão',
+      bases: 'Importar Bases & Backup',
+      explorer: 'Consultar Bases Cadastradas'
+    };
+    if (this.titleEl) this.titleEl.textContent = titles[this.activeTab] || 'Configurações';
 
     if (this.activeTab === 'motives') this._renderMotivesTab();
     else if (this.activeTab === 'rules') this._renderRulesTab();
@@ -132,7 +142,7 @@ export class AdminModalController {
     ].join('');
 
     this.bodyEl.innerHTML = `
-      <div style="border:1px solid #bae6fd;background:#f0f9ff;padding:10px 12px;border-radius:8px;font-size:12px;">
+      <div class="callout">
         <strong>Como funciona a Revisão de Motivos:</strong> Para cada <strong>Situação</strong> abaixo, o motor verifica o pedido no TOTVS/CSV, gera a <strong>Observação</strong> padrão (sempre com o prefixo da data atual <span class="mono">${todayShort}:</span>) e aplica o código de <strong>Motivo</strong> do respectivo cliente. Alterações feitas aqui são salvas no IndexedDB local para os próximos envios.
       </div>
 
@@ -392,7 +402,7 @@ export class AdminModalController {
     const pre = this.prefillDePara || {};
 
     this.bodyEl.innerHTML = `
-      <div style="border:1px solid #bae6fd;background:#f0f9ff;padding:10px 12px;border-radius:8px;font-size:12px;">
+      <div class="callout">
         <strong>Onde estes dados ficam salvos?</strong> Todos os vínculos de <strong>De-Para Customizado</strong>, <strong>Frases Padrão</strong>, <strong>Revisões de Motivos</strong> e <strong>Tempo de entrega/agendamento</strong> são gravados automaticamente no banco local do seu navegador (<strong>IndexedDB</strong> → banco <span class="mono">gtplan_followup_db</span>, store <span class="mono">kv_store</span>, chave <span class="mono">app_config_v1</span>) e já ficam prontos para migração futura para banco de dados via <span class="mono">repository.js</span>. Para copiar para outro PC, use <strong>Exportar Backup JSON</strong> na aba <em>Importar Bases &amp; Backup</em>.
       </div>
 
@@ -547,7 +557,7 @@ export class AdminModalController {
           Restaurar Backup JSON
           <input type="file" id="inp-import-backup" accept=".json" style="display:none;" />
         </label>
-        <button type="button" class="btn" id="btn-reset-seed" style="margin-left:auto;color:var(--danger);">Restaurar Dados de Fábrica</button>
+        <button type="button" class="btn btn-danger-ghost" id="btn-reset-seed" style="margin-left:auto;">Restaurar Dados de Fábrica…</button>
       </div>
     `;
 
@@ -641,6 +651,10 @@ export class AdminModalController {
     });
 
     this.bodyEl.querySelector('#btn-reset-seed').addEventListener('click', async () => {
+      const ok = window.confirm(
+        'Restaurar os dados de fábrica apaga De-Paras customizados, frases, revisões de motivos, regras de prazo e feriados salvos neste navegador.\n\nRecomendado: exporte um Backup JSON antes.\n\nContinuar?'
+      );
+      if (!ok) return;
       await this.onResetConfig();
       this.showToast('Configurações restauradas ao padrão inicial.');
       this.render();
