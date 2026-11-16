@@ -13,6 +13,7 @@ const ORDERED_MODULES = [
   { file: 'src/core/ruleEngine.js', scope: false },
   { file: 'src/data/seedData.js', scope: false },
   { file: 'src/storage/repository.js', scope: false },
+  { file: 'src/ui/icons.js', scope: false },
   { file: 'src/ui/triageTable.js', scope: true, exports: ['TriageTableController'] },
   { file: 'src/ui/adminModal.js', scope: true, exports: ['AdminModalController'] },
   { file: 'src/main.js', scope: false }
@@ -31,7 +32,14 @@ function stripImportsAndExports(src, keepScope = false, exportNames = []) {
 
 async function main() {
   const html = await fs.readFile(path.join(__dirname, 'index.html'), 'utf8');
-  const css = await fs.readFile(path.join(__dirname, 'styles/main.css'), 'utf8');
+  const tokensCss = await fs.readFile(path.join(__dirname, 'styles/cbs-tokens.css'), 'utf8');
+  // Fonte Quicksand embutida como data URI para o HTML funcionar offline (arquivo único)
+  const fontB64 = (await fs.readFile(path.join(__dirname, 'assets/fonts/Quicksand-VariableFont_wght.ttf'))).toString('base64');
+  const css = (await fs.readFile(path.join(__dirname, 'styles/main.css'), 'utf8')).replace(
+    'url("../assets/fonts/Quicksand-VariableFont_wght.ttf")',
+    `url("data:font/ttf;base64,${fontB64}")`
+  );
+  const logoB64 = (await fs.readFile(path.join(__dirname, 'assets/brand/logo-branco.svg'))).toString('base64');
 
   const chunks = [];
   for (const mod of ORDERED_MODULES) {
@@ -41,10 +49,10 @@ async function main() {
 
   const bundledJs = chunks.join('\n\n').replace(/<\/script>/gi, '<\\/script>');
 
-  let singleHtml = html.replace(
-    '<link rel="stylesheet" href="./styles/main.css" />',
-    `<style>\n${css}\n</style>`
-  );
+  let singleHtml = html
+    .replace('<link rel="stylesheet" href="./styles/cbs-tokens.css" />', () => `<style>\n${tokensCss}\n</style>`)
+    .replace('<link rel="stylesheet" href="./styles/main.css" />', () => `<style>\n${css}\n</style>`)
+    .replace('src="./assets/brand/logo-branco.svg"', `src="data:image/svg+xml;base64,${logoB64}"`);
   singleHtml = singleHtml.replace(
     '<script type="module" src="./src/main.js"></script>',
     () => `<script type="module">\n${bundledJs}\n</script>`

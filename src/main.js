@@ -11,6 +11,7 @@ import {
 } from './core/ruleEngine.js';
 import { TriageTableController } from './ui/triageTable.js';
 import { AdminModalController } from './ui/adminModal.js';
+import { icon } from './ui/icons.js';
 
 const repo = new IndexedDbRepository(SEED_DATA);
 
@@ -31,6 +32,7 @@ const state = {
 };
 
 // Elements
+const ingestGrid = document.getElementById('ingest-grid');
 const dzCsv = document.getElementById('dz-csv');
 const inpCsv = document.getElementById('inp-csv');
 const metaCsvEl = document.getElementById('meta-csv');
@@ -39,11 +41,17 @@ const dzTotvs = document.getElementById('dz-totvs');
 const inpTotvs = document.getElementById('inp-totvs');
 const metaTotvsEl = document.getElementById('meta-totvs');
 
+const summaryCard = document.getElementById('summary-card');
+const progressText = document.getElementById('progress-text');
+const progressFill = document.getElementById('progress-fill');
+const progressTrack = document.getElementById('progress-track');
 const kpiGrid = document.getElementById('kpi-grid');
 const selClient = document.getElementById('filter-client');
 const selEstab = document.getElementById('filter-estab');
 const inpSearch = document.getElementById('filter-search');
 const toolbarStats = document.getElementById('toolbar-stats');
+const btnClearFilters = document.getElementById('btn-clear-filters');
+const tableScroll = document.getElementById('table-scroll');
 
 const btnReviewBadge = document.getElementById('btn-review-count');
 const btnOpenReview = document.getElementById('btn-open-review');
@@ -53,18 +61,36 @@ const btnExportCsv = document.getElementById('btn-export-csv');
 const btnReprocessForce = document.getElementById('btn-reprocess-force');
 
 const exportBackdrop = document.getElementById('export-backdrop');
+const exportSummaryEl = document.getElementById('export-summary');
 const exportListEl = document.getElementById('export-batch-list');
 const btnExportAllSeq = document.getElementById('btn-export-all-seq');
 const btnExportClose = document.getElementById('btn-export-close');
+const btnExportCancel = document.getElementById('btn-export-cancel');
 
 const toastEl = document.getElementById('toast');
 let toastTimer = null;
 
-function showToast(msg) {
+const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+
+function esc(val) {
+  return String(val ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * @param {string} msg
+ * @param {'info'|'success'|'error'} [type]
+ */
+function showToast(msg, type = 'info') {
+  if (type === 'info' && /^(erro|falha)/i.test(msg)) type = 'error';
   toastEl.textContent = msg;
-  toastEl.classList.remove('hidden');
+  toastEl.className = `toast toast-${type}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.add('hidden'), 3600);
+  toastTimer = setTimeout(() => toastEl.classList.add('hidden'), type === 'error' ? 7000 : 3600);
 }
 
 function rebuildIndexes() {
@@ -107,7 +133,8 @@ function reprocessRows({ preserveEdited = true } = {}) {
 
   populateFilterDropdowns();
   renderAll();
-  showToast(`Processadas ${state.processedRows.length} linhas em ${elapsed} ms.`);
+  const kept = previousEdited.size > 0 ? ` (${fmt(previousEdited.size)} edições manuais mantidas)` : '';
+  showToast(`${fmt(state.processedRows.length)} linhas processadas em ${elapsed} ms${kept}.`, 'success');
 }
 
 function populateFilterDropdowns() {
@@ -122,24 +149,26 @@ function populateFilterDropdowns() {
 
   const prevCli = state.clientFilter;
   selClient.innerHTML = [
-    '<option value="">Todos os clientes</option>',
+    `<option value="">Todos os clientes (${clients.size})</option>`,
     ...Array.from(clients.entries())
       .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([cod, name]) => `<option value="${cod}">${cod} — ${name}</option>`)
+      .map(([cod, name]) => `<option value="${esc(cod)}">${esc(cod)} — ${esc(name)}</option>`)
   ].join('');
   selClient.value = clients.has(prevCli) ? prevCli : '';
   state.clientFilter = selClient.value;
 
   const prevEst = state.estabFilter;
   selEstab.innerHTML = [
-    '<option value="">Todos os estabelecimentos</option>',
+    `<option value="">Todos os estabelecimentos (${estabs.size})</option>`,
     ...Array.from(estabs)
       .sort()
-      .map((est) => `<option value="${est}">${est}</option>`)
+      .map((est) => `<option value="${esc(est)}">${esc(est)}</option>`)
   ].join('');
   selEstab.value = estabs.has(prevEst) ? prevEst : '';
   state.estabFilter = selEstab.value;
 }
+
+const isReady = (m) => !m.unchanged && !m.needsMotivo && m.hasDePara;
 
 function getKpiCounts(rows) {
   let ready = 0;
@@ -148,26 +177,35 @@ function getKpiCounts(rows) {
   let divergences = 0;
   let reviewMotive = 0;
   let unchanged = 0;
+  let pending = 0;
 
   for (const r of rows) {
     const m = r.meta;
     if (m.needsMotivo) missingMotive++;
     if (!m.hasDePara) missingDePara++;
+    if (m.needsMotivo || !m.hasDePara) pending++;
     if (m.hasCaixaria || m.hasValor || m.hasSpot) divergences++;
     if (m.motiveConfidence === 'review' || m.motiveConfidence === 'suggested') reviewMotive++;
     if (m.unchanged) unchanged++;
-    if (!m.unchanged && !m.needsMotivo && m.hasDePara) ready++;
+    if (isReady(m)) ready++;
   }
 
   return {
     all: rows.length,
     ready,
+    pending,
     missing_motive: missingMotive,
     missing_depara: missingDePara,
     divergences,
     review_motive: reviewMotive,
     unchanged
   };
+}
+
+function hasActiveFilters() {
+  return Boolean(
+    state.activeStatusFilter !== 'all' || state.clientFilter || state.estabFilter || state.searchQuery.trim()
+  );
 }
 
 function getFilteredRows() {
@@ -177,7 +215,7 @@ function getFilteredRows() {
     const raw = r.raw;
     const out = r.output;
 
-    if (state.activeStatusFilter === 'ready' && !(!m.unchanged && !m.needsMotivo && m.hasDePara)) return false;
+    if (state.activeStatusFilter === 'ready' && !isReady(m)) return false;
     if (state.activeStatusFilter === 'missing_motive' && !m.needsMotivo) return false;
     if (state.activeStatusFilter === 'missing_depara' && m.hasDePara) return false;
     if (state.activeStatusFilter === 'divergences' && !(m.hasCaixaria || m.hasValor || m.hasSpot)) return false;
@@ -215,16 +253,32 @@ function getFilteredRows() {
   });
 }
 
+function clearFilters() {
+  state.activeStatusFilter = 'all';
+  state.clientFilter = '';
+  state.estabFilter = '';
+  state.searchQuery = '';
+  selClient.value = '';
+  selEstab.value = '';
+  inpSearch.value = '';
+  renderAll();
+}
+
 const tableCtrl = new TriageTableController({
   tbodyEl: document.getElementById('triage-tbody'),
   paginationEl: document.getElementById('triage-pagination'),
+  scrollEl: tableScroll,
   getRows: () => state.processedRows,
   getFrases: () => state.config?.frases || [],
   getMotiveResolver: () => state.motiveResolver,
+  getEmptyContext: () => ({ hasCsv: Boolean(state.csvParsed), hasFilters: hasActiveFilters() }),
+  onClearFilters: clearFilters,
   onRowUpdated: (_, { skipFullRender }) => {
     renderKpis();
     if (!skipFullRender) {
-      tableCtrl.render(getFilteredRows(), tableCtrl.currentPage);
+      const filtered = getFilteredRows();
+      renderToolbar(filtered.length);
+      tableCtrl.render(filtered, tableCtrl.currentPage);
     }
   },
   onOpenDeParaModal: (row) => {
@@ -268,68 +322,163 @@ const adminModal = new AdminModalController({
   showToast
 });
 
+const KPI_GROUPS = [
+  {
+    label: 'Visão geral',
+    cards: [
+      { key: 'all', label: 'Todas', cls: 'neutral', help: 'Todas as linhas do CSV carregado.' },
+      { key: 'ready', label: 'Prontas', cls: 'success', help: 'Têm De-Para e Motivo e foram alteradas: serão enviadas como resposta.' },
+      { key: 'unchanged', label: 'Sem alteração', cls: 'muted', help: 'A observação gerada é igual à que já estava no portal; nada novo a responder.' }
+    ]
+  },
+  {
+    label: 'Precisa de atenção',
+    cards: [
+      { key: 'missing_depara', label: 'Sem De-Para', cls: 'danger', help: 'Item do GTplan sem código CBS correspondente. Use "Vincular CBS" na linha.' },
+      { key: 'missing_motive', label: 'Sem Motivo', cls: 'warn', help: 'O motor não conseguiu decidir um motivo. Escolha um na coluna Motivo.' },
+      { key: 'review_motive', label: 'Motivo p/ revisar', cls: 'info', help: 'Motivo sugerido automaticamente ou ambíguo para o cliente. Confira antes de exportar.' },
+      { key: 'divergences', label: 'Divergências', cls: 'warn', help: 'Caixaria (quantidade não múltipla), valor acima de 3% ou item Spot (fora de contrato).' }
+    ]
+  }
+];
+
 function renderKpis() {
   const counts = getKpiCounts(state.processedRows);
-  const cards = [
-    { key: 'all', label: 'Total de Linhas', val: counts.all, cls: '' },
-    { key: 'ready', label: 'Prontas / Alteradas', val: counts.ready, cls: 'success' },
-    { key: 'missing_motive', label: 'Sem Motivo', val: counts.missing_motive, cls: 'warn' },
-    { key: 'missing_depara', label: 'Sem De-Para', val: counts.missing_depara, cls: 'danger' },
-    { key: 'divergences', label: 'Divergências', val: counts.divergences, cls: 'warn' },
-    { key: 'review_motive', label: 'Motivos p/ Revisar', val: counts.review_motive, cls: 'info' },
-    { key: 'unchanged', label: 'Sem Alteração', val: counts.unchanged, cls: '' }
-  ];
+  const hasRows = state.processedRows.length > 0;
+  summaryCard.hidden = !hasRows;
 
-  kpiGrid.innerHTML = cards
-    .map(
-      (c) => `
-      <button type="button" class="kpi-card ${c.cls} ${state.activeStatusFilter === c.key ? 'active' : ''}" data-kpi="${c.key}">
-        <span class="kpi-label">${c.label}</span>
-        <span class="kpi-value">${c.val.toLocaleString('pt-BR')}</span>
-      </button>`
-    )
-    .join('');
+  // Progresso: linhas que já não exigem ação (prontas + sem alteração)
+  const resolved = counts.all - counts.pending;
+  const pct = counts.all ? Math.round((resolved / counts.all) * 100) : 0;
+  progressFill.style.width = `${pct}%`;
+  progressTrack.setAttribute('aria-valuenow', String(pct));
+  progressText.innerHTML = counts.pending
+    ? `<strong>${fmt(counts.pending)}</strong> pendente${counts.pending === 1 ? '' : 's'} · ${pct}% ok`
+    : `<strong>${icon('circle-check')}</strong> Nenhuma pendência`;
+  progressText.title = 'Pendentes = linhas sem De-Para ou sem Motivo';
 
-  kpiGrid.querySelectorAll('[data-kpi]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.activeStatusFilter = btn.dataset.kpi;
-      renderAll();
-    });
-  });
+  kpiGrid.innerHTML = KPI_GROUPS.map(
+    (g) => `
+      <div class="kpi-group">
+        <span class="kpi-group-label">${g.label}</span>
+        <div class="kpi-group-items">
+          ${g.cards
+            .map((c) => {
+              const val = counts[c.key];
+              const active = state.activeStatusFilter === c.key;
+              return `
+                <button type="button" class="kpi-card ${c.cls} ${active ? 'active' : ''} ${val === 0 && c.key !== 'all' ? 'is-zero' : ''}"
+                  data-kpi="${c.key}" title="${esc(c.help)}" aria-pressed="${active}">
+                  <span class="kpi-label">${c.label}</span>
+                  <span class="kpi-value">${fmt(val)}</span>
+                </button>`;
+            })
+            .join('')}
+        </div>
+      </div>`
+  ).join('');
 
   btnReviewBadge.textContent = String(counts.review_motive);
-  btnReviewBadge.style.display = counts.review_motive > 0 ? 'inline-flex' : 'none';
-  btnExportCsv.disabled = state.processedRows.length === 0;
+  btnReviewBadge.hidden = counts.review_motive === 0;
+  btnExportCsv.disabled = !hasRows;
   btnReprocessForce.disabled = !state.csvParsed;
 }
 
+kpiGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-kpi]');
+  if (!btn) return;
+  // Clicar de novo no filtro ativo volta para "Todas"
+  state.activeStatusFilter = state.activeStatusFilter === btn.dataset.kpi ? 'all' : btn.dataset.kpi;
+  renderAll();
+});
+
+function renderToolbar(filteredCount) {
+  const total = state.processedRows.length;
+  toolbarStats.textContent =
+    total === 0
+      ? 'Nenhuma linha carregada'
+      : filteredCount === total
+        ? `${fmt(total)} linhas`
+        : `${fmt(filteredCount)} de ${fmt(total)} linhas`;
+  btnClearFilters.hidden = !hasActiveFilters();
+  selClient.classList.toggle('is-active', Boolean(state.clientFilter));
+  selEstab.classList.toggle('is-active', Boolean(state.estabFilter));
+}
+
+function renderIngest() {
+  const hasCsv = Boolean(state.csvParsed);
+  ingestGrid.classList.toggle('is-compact', hasCsv);
+
+  const csvTag = dzCsv.querySelector('[data-dz-tag]');
+  const csvAction = dzCsv.querySelector('[data-dz-action]');
+  if (hasCsv) {
+    csvTag.textContent = 'Carregado';
+    csvTag.className = 'dz-tag dz-tag-done';
+    csvAction.textContent = 'Trocar arquivo';
+  }
+
+  const totvsTag = dzTotvs.querySelector('[data-dz-tag]');
+  const totvsAction = dzTotvs.querySelector('[data-dz-action]');
+  if (state.totvsIdx) {
+    totvsTag.textContent = 'Carregado';
+    totvsTag.className = 'dz-tag dz-tag-done';
+    totvsAction.textContent = 'Trocar arquivo';
+    dzTotvs.classList.remove('missing');
+  } else if (hasCsv) {
+    totvsTag.textContent = 'Não carregada';
+    totvsTag.className = 'dz-tag dz-tag-warn';
+    totvsAction.textContent = 'Carregar XLSX';
+    dzTotvs.classList.add('missing');
+    metaTotvsEl.textContent = 'Linhas processadas sem pedido/NF do TOTVS. Carregue a base para completar.';
+  }
+}
+
 function renderAll() {
+  renderIngest();
   renderKpis();
   const filtered = getFilteredRows();
-  toolbarStats.textContent = `${filtered.length.toLocaleString('pt-BR')} de ${state.processedRows.length.toLocaleString('pt-BR')} exibidas`;
+  renderToolbar(filtered.length);
   tableCtrl.render(filtered, 1);
 }
 
 // Drag & Drop handlers
 async function handleCsvFile(file) {
   if (!file) return;
+  if (!/\.csv$/i.test(file.name)) {
+    showToast(`"${file.name}" não parece um CSV. Use o arquivo exportado do GTplan.`, 'error');
+    return;
+  }
+  const editedCount = state.processedRows.filter((r) => r.meta.editedByUser).length;
+  if (
+    editedCount > 0 &&
+    !window.confirm(`Você tem ${editedCount} linha(s) editada(s) manualmente. Carregar um novo CSV descarta essas edições. Continuar?`)
+  ) {
+    return;
+  }
   try {
     const text = await file.text();
     const parsed = parseGtplanCsv(text);
     state.csvParsed = parsed;
-    state.csvMeta = `${file.name} (${parsed.rows.length} linhas)`;
+    state.csvMeta = `${file.name} · ${fmt(parsed.rows.length)} linhas`;
     metaCsvEl.textContent = state.csvMeta;
+    metaCsvEl.title = file.name;
     dzCsv.classList.add('loaded');
+    state.activeStatusFilter = 'all';
     reprocessRows({ preserveEdited: false });
   } catch (err) {
-    showToast(`Erro ao ler CSV: ${err.message}`);
+    showToast(`Erro ao ler CSV: ${err.message}`, 'error');
   }
 }
 
 async function handleTotvsFile(file) {
   if (!file) return;
+  if (!/\.xls[xm]$/i.test(file.name)) {
+    showToast(`"${file.name}" não é um Excel .xlsx/.xlsm.`, 'error');
+    return;
+  }
   try {
-    metaTotvsEl.textContent = `Lendo ${file.name}...`;
+    metaTotvsEl.textContent = `Lendo ${file.name}…`;
+    dzTotvs.classList.add('is-loading');
     const t0 = performance.now();
     const buf = new Uint8Array(await file.arrayBuffer());
     const sheetsRaw = await readWorkbookSheets(buf, [
@@ -350,23 +499,34 @@ async function handleTotvsFile(file) {
 
     state.totvsIdx = indexTotvsWorkbook(sheets);
     const ms = Math.round(performance.now() - t0);
-    state.totvsMeta = `${file.name} (${state.totvsIdx.byProdOc.size} itens/OC indexados em ${ms} ms)`;
+    state.totvsMeta = `${file.name} · ${fmt(state.totvsIdx.byProdOc.size)} itens/OC indexados (${ms} ms)`;
     metaTotvsEl.textContent = state.totvsMeta;
+    metaTotvsEl.title = file.name;
     dzTotvs.classList.add('loaded');
 
     if (state.csvParsed) {
       reprocessRows({ preserveEdited: true });
     } else {
-      showToast('Base TOTVS carregada! Agora arraste o CSV do GTplan.');
+      renderIngest();
+      showToast('Base TOTVS carregada. Agora carregue o CSV do GTplan.', 'success');
     }
   } catch (err) {
-    metaTotvsEl.textContent = 'Falha ao ler Excel TOTVS';
-    showToast(`Erro no XLSX TOTVS: ${err.message}`);
+    metaTotvsEl.textContent = 'Falha ao ler o Excel TOTVS. Confira se é o bimestreamil.xlsx.';
+    showToast(`Erro no XLSX TOTVS: ${err.message}`, 'error');
+  } finally {
+    dzTotvs.classList.remove('is-loading');
   }
 }
 
 function wireDropzone(dzEl, inputEl, onFile) {
   dzEl.addEventListener('click', () => inputEl.click());
+  dzEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      inputEl.click();
+    }
+  });
+  inputEl.addEventListener('click', (e) => e.stopPropagation());
   inputEl.addEventListener('change', (e) => {
     if (e.target.files?.[0]) onFile(e.target.files[0]);
     inputEl.value = '';
@@ -383,6 +543,10 @@ function wireDropzone(dzEl, inputEl, onFile) {
   });
 }
 
+// Evita que um arquivo solto fora das áreas abra no navegador e perca o trabalho
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
 function triggerDownload(filename, content) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -397,50 +561,81 @@ function triggerDownload(filename, content) {
 
 let currentExportBatches = [];
 
-btnExportCsv.addEventListener('click', () => {
+function openExportModal() {
   if (state.processedRows.length === 0) return;
   const batches = buildGtplanCsvBatches(state.processedRows, { batchSize: 1000 });
   currentExportBatches = batches;
+  const counts = getKpiCounts(state.processedRows);
 
-  if (batches.length === 1) {
-    triggerDownload(batches[0].filename, batches[0].content);
-    showToast(`Exportado ${batches[0].filename} (${batches[0].rowCount} linhas).`);
-    return;
-  }
+  const warnings = [];
+  if (counts.missing_depara) warnings.push(`<li><strong>${fmt(counts.missing_depara)}</strong> sem De-Para</li>`);
+  if (counts.missing_motive) warnings.push(`<li><strong>${fmt(counts.missing_motive)}</strong> sem Motivo (vão com o campo Motivo vazio)</li>`);
+  if (counts.review_motive) warnings.push(`<li><strong>${fmt(counts.review_motive)}</strong> com motivo sugerido/para revisar</li>`);
+
+  exportSummaryEl.innerHTML = `
+    <div class="callout ${warnings.length ? 'callout-warn' : 'callout-success'}">
+      ${
+        warnings.length
+          ? `<strong>Atenção: ainda há linhas pendentes.</strong> O arquivo pode ser gerado mesmo assim, mas confira:<ul>${warnings.join('')}</ul>`
+          : `<strong>Tudo certo.</strong> Nenhuma linha pendente de De-Para ou Motivo.`
+      }
+    </div>
+    <p class="sub-line" style="margin:0;">
+      ${fmt(counts.all)} linhas no layout oficial de 24 colunas (UTF-8, separador ";"), incluindo
+      ${fmt(counts.unchanged)} sem alteração. O GTplan aceita até 1.000 linhas por arquivo${
+        batches.length > 1 ? `, então o envio foi dividido em <strong>${batches.length} lotes</strong>` : ''
+      }.
+    </p>`;
 
   exportListEl.innerHTML = batches
     .map(
       (b, idx) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--border-soft);border-radius:7px;">
-        <div>
-          <strong class="mono">${b.filename}</strong>
-          <div class="sub-line">Lote ${b.batchNumber} de ${b.totalBatches} — ${b.rowCount} linhas (24 colunas)</div>
+      <div class="batch-item">
+        <div style="min-width:0;">
+          <strong class="mono truncate" style="display:block;">${esc(b.filename)}</strong>
+          <div class="sub-line">${b.totalBatches > 1 ? `Lote ${b.batchNumber} de ${b.totalBatches} · ` : ''}${fmt(b.rowCount)} linhas</div>
         </div>
-        <button type="button" class="btn btn-primary btn-xs" data-dl-batch="${idx}">Baixar Lote ${b.batchNumber}</button>
+        ${b.totalBatches > 1 ? `<button type="button" class="btn btn-sm" data-dl-batch="${idx}">Baixar lote ${b.batchNumber}</button>` : ''}
       </div>`
     )
     .join('');
 
-  exportListEl.querySelectorAll('[data-dl-batch]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const b = currentExportBatches[Number(btn.dataset.dlBatch)];
-      triggerDownload(b.filename, b.content);
-    });
-  });
-
+  btnExportAllSeq.textContent = batches.length > 1 ? `Baixar os ${batches.length} lotes` : 'Baixar CSV';
   exportBackdrop.classList.remove('hidden');
+  btnExportAllSeq.focus();
+}
+
+exportListEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-dl-batch]');
+  if (!btn) return;
+  const b = currentExportBatches[Number(btn.dataset.dlBatch)];
+  triggerDownload(b.filename, b.content);
+  btn.innerHTML = `${icon('check')} Baixado`;
 });
+
+function closeExportModal() {
+  exportBackdrop.classList.add('hidden');
+}
+
+btnExportCsv.addEventListener('click', openExportModal);
 
 btnExportAllSeq.addEventListener('click', () => {
   currentExportBatches.forEach((b, i) => {
     setTimeout(() => triggerDownload(b.filename, b.content), i * 350);
   });
-  showToast(`Iniciando download de ${currentExportBatches.length} lotes.`);
+  showToast(
+    currentExportBatches.length > 1
+      ? `Baixando ${currentExportBatches.length} lotes…`
+      : `Exportado ${currentExportBatches[0].filename}.`,
+    'success'
+  );
+  closeExportModal();
 });
 
-btnExportClose.addEventListener('click', () => exportBackdrop.classList.add('hidden'));
+btnExportClose.addEventListener('click', closeExportModal);
+btnExportCancel.addEventListener('click', closeExportModal);
 exportBackdrop.addEventListener('click', (e) => {
-  if (e.target === exportBackdrop) exportBackdrop.classList.add('hidden');
+  if (e.target === exportBackdrop) closeExportModal();
 });
 
 selClient.addEventListener('change', () => {
@@ -453,15 +648,64 @@ selEstab.addEventListener('change', () => {
   renderAll();
 });
 
+let searchTimer = null;
 inpSearch.addEventListener('input', () => {
-  state.searchQuery = inpSearch.value;
-  renderAll();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    state.searchQuery = inpSearch.value;
+    renderAll();
+  }, 150);
 });
+
+btnClearFilters.addEventListener('click', clearFilters);
 
 btnOpenReview.addEventListener('click', () => adminModal.open('motives'));
 btnOpenExplorer.addEventListener('click', () => adminModal.open('explorer'));
 btnOpenAdmin.addEventListener('click', () => adminModal.open('rules'));
-btnReprocessForce.addEventListener('click', () => reprocessRows({ preserveEdited: false }));
+
+btnReprocessForce.addEventListener('click', () => {
+  const editedCount = state.processedRows.filter((r) => r.meta.editedByUser).length;
+  if (editedCount > 0) {
+    const discard = window.confirm(
+      `Há ${editedCount} linha(s) editada(s) manualmente.\n\nOK = recalcular TUDO e descartar essas edições\nCancelar = recalcular mantendo as edições`
+    );
+    reprocessRows({ preserveEdited: !discard });
+    return;
+  }
+  reprocessRows({ preserveEdited: false });
+});
+
+// Atalhos de teclado: Esc fecha popover/modal; Ctrl+F (ou /) foca a busca
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (tableCtrl.activePopover) {
+      tableCtrl.closePopover();
+      return;
+    }
+    if (!exportBackdrop.classList.contains('hidden')) {
+      closeExportModal();
+      return;
+    }
+    if (!adminModal.backdropEl.classList.contains('hidden')) {
+      adminModal.close();
+    }
+    return;
+  }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+  const modalOpen = !exportBackdrop.classList.contains('hidden') || !adminModal.backdropEl.classList.contains('hidden');
+  if (!modalOpen && state.processedRows.length && ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key === 'f'))) {
+    e.preventDefault();
+    inpSearch.focus();
+    inpSearch.select();
+  }
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (state.processedRows.some((r) => r.meta.editedByUser)) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 wireDropzone(dzCsv, inpCsv, handleCsvFile);
 wireDropzone(dzTotvs, inpTotvs, handleTotvsFile);

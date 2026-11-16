@@ -372,7 +372,7 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
   // Busca exata (codCBS + OC na coluna OC do Dados Simplificados)
   outer: for (const oc of ocCandidates) {
     for (const cbs of candidateCbs) {
-      const hits = totvsIdx.byProdOc.get(`${cbs}|${oc}`);
+      const hits = totvsIdx?.byProdOc?.get(`${cbs}|${oc}`);
       if (hits && hits.length > 0) {
         totvsRow = hits[0];
         matchedOc = oc;
@@ -385,7 +385,7 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
   if (!totvsRow) {
     outer2: for (const oc of ocCandidates) {
       for (const cbs of candidateCbs) {
-        const hits = totvsIdx.byProdToken.get(`${cbs}|${oc}`);
+        const hits = totvsIdx?.byProdToken?.get(`${cbs}|${oc}`);
         if (hits && hits.length > 0) {
           totvsRow = hits[0];
           matchedOc = oc;
@@ -490,7 +490,7 @@ export function processFollowUpBatch(csvRows, context) {
     // 2. Nova Prev. Entrega
     let novaPrevDate = prevAtual;
     if (totvsRow) {
-      const aj = numNfNum > 0 ? totvsIdx.ajusteRemessaByNf.get(String(numNfNum)) : null;
+      const aj = numNfNum > 0 ? totvsIdx?.ajusteRemessaByNf?.get(String(numNfNum)) : null;
       if (aj) {
         novaPrevDate = aj.date;
       } else if (numNfNum > 0) {
@@ -526,7 +526,7 @@ export function processFollowUpBatch(csvRows, context) {
         obsValor = `${todayShort}: Ajustar valor para R$ ${formatMoney(valorAjustado, 4)}`;
       }
     } else if (!totvsRow && codCBS) {
-      const precoSpotRaw = totvsIdx.semContratoByCbs.get(codCBS);
+      const precoSpotRaw = totvsIdx?.semContratoByCbs?.get(codCBS);
       if (Number.isFinite(precoSpotRaw) && precoSpotRaw > 0) {
         isSpot = true;
         let valorSpot = Math.round(precoSpotRaw * 100) / 100;

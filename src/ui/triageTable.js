@@ -1,6 +1,7 @@
 import { formatShortBRDate, todayUtc } from '../core/dates.js';
 import { inferSlugFromObservationText } from '../core/motiveResolver.js';
 import { stripDatePrefix } from '../core/ruleEngine.js';
+import { icon } from './icons.js';
 
 function esc(val) {
   return String(val ?? '')
@@ -11,21 +12,43 @@ function esc(val) {
     .replace(/'/g, '&#39;');
 }
 
+const DATE_FIELDS = new Set(['Nova Prev. Entrega', 'Dt. NF']);
+const BR_DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
+
+function isInvalidDate(field, value) {
+  const v = String(value ?? '').trim();
+  return DATE_FIELDS.has(field) && v !== '' && !BR_DATE_RE.test(v);
+}
+
+/** Classe de status da linha (barra colorida à esquerda). */
+function rowStatusClass(meta) {
+  if (!meta.hasDePara) return 'st-danger';
+  if (meta.needsMotivo) return 'st-warn';
+  if (meta.unchanged) return 'st-unchanged';
+  return 'st-ready';
+}
+
 export class TriageTableController {
   constructor({
     tbodyEl,
     paginationEl,
+    scrollEl,
     getRows,
     getFrases,
     getMotiveResolver,
+    getEmptyContext,
+    onClearFilters,
     onRowUpdated,
     onOpenDeParaModal
   }) {
     this.tbodyEl = tbodyEl;
     this.paginationEl = paginationEl;
+    this.scrollEl = scrollEl || null;
     this.getRows = getRows;
     this.getFrases = getFrases;
     this.getMotiveResolver = getMotiveResolver;
+    this.getEmptyContext = getEmptyContext || (() => ({ hasCsv: true, hasFilters: false }));
+    this.onClearFilters = onClearFilters || (() => {});
     this.onRowUpdated = onRowUpdated;
     this.onOpenDeParaModal = onOpenDeParaModal;
 
@@ -33,6 +56,7 @@ export class TriageTableController {
     this.currentPage = 1;
     this.autoPrefixDate = true;
     this.activePopover = null;
+    this.lastFilteredRows = [];
 
     this._bindEvents();
   }
@@ -43,6 +67,11 @@ export class TriageTableController {
         this.closePopover();
       }
     });
+
+    // Popover acompanha a rolagem? Mais simples e previsível: fecha ao rolar a tabela.
+    if (this.scrollEl) {
+      this.scrollEl.addEventListener('scroll', () => this.closePopover(), { passive: true });
+    }
 
     this.tbodyEl.addEventListener('input', (e) => {
       const target = e.target;
@@ -63,17 +92,28 @@ export class TriageTableController {
         row.meta.needsMotivo = !String(target.value).trim();
       }
       if (field === 'Observação') {
+        this._autoGrow(target);
         this._refreshObsSuggestion(tr, row);
       }
+      if (DATE_FIELDS.has(field) && target.classList.contains('is-invalid')) {
+        target.classList.toggle('is-invalid', isInvalidDate(field, target.value));
+      }
 
-      tr.classList.add('row-edited');
+      this._refreshRowState(tr, row);
       this.onRowUpdated(row, { skipFullRender: true });
     });
 
     // Garante que qualquer observação editada manualmente mantenha o prefixo da data atual (dd/mm:)
     this.tbodyEl.addEventListener('change', (e) => {
       const target = e.target;
-      if (target.dataset.field !== 'Observação') return;
+      const field = target.dataset.field;
+      if (DATE_FIELDS.has(field)) {
+        const invalid = isInvalidDate(field, target.value);
+        target.classList.toggle('is-invalid', invalid);
+        target.title = invalid ? 'Formato esperado: DD/MM/AAAA' : '';
+        return;
+      }
+      if (field !== 'Observação') return;
       const tr = target.closest('tr[data-row-index]');
       if (!tr) return;
       const row = this._findRow(Number(tr.dataset.rowIndex));
@@ -94,6 +134,10 @@ export class TriageTableController {
     this.tbodyEl.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
+      if (btn.dataset.action === 'clear-filters') {
+        this.onClearFilters();
+        return;
+      }
       const tr = btn.closest('tr[data-row-index]');
       if (!tr) return;
       const rowIndex = Number(tr.dataset.rowIndex);
@@ -102,11 +146,11 @@ export class TriageTableController {
 
       const action = btn.dataset.action;
       if (action === 'open-frases') {
-        this._openFrasesPopover(btn, tr, row);
+        this._togglePopover(btn, () => this._openFrasesPopover(btn, tr, row));
       } else if (action === 'prefix-today') {
         this._applyTodayPrefix(tr, row);
       } else if (action === 'open-motives') {
-        this._openMotivePopover(btn, tr, row);
+        this._togglePopover(btn, () => this._openMotivePopover(btn, tr, row));
       } else if (action === 'apply-suggested-motive') {
         const codigo = btn.dataset.codigo || '';
         const desc = btn.dataset.desc || '';
@@ -127,11 +171,34 @@ export class TriageTableController {
     return this.getRows().find((r) => r.rowIndex === rowIndex) || null;
   }
 
+  _togglePopover(anchor, openFn) {
+    if (this.activePopover && this.activePopover.dataset.anchorId === anchor.dataset.anchorId && anchor.dataset.anchorId) {
+      this.closePopover();
+      return;
+    }
+    openFn();
+  }
+
   closePopover() {
     if (this.activePopover) {
       this.activePopover.remove();
       this.activePopover = null;
     }
+  }
+
+  _autoGrow(el) {
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight + 2, 160)}px`;
+  }
+
+  /** Atualiza barra de status e chips da linha sem re-renderizar a tabela inteira. */
+  _refreshRowState(tr, row) {
+    tr.classList.remove('st-danger', 'st-warn', 'st-unchanged', 'st-ready');
+    tr.classList.add(rowStatusClass(row.meta));
+    tr.classList.toggle('row-edited', Boolean(row.meta.editedByUser));
+    const statusCell = tr.querySelector('[data-status-cell]');
+    if (statusCell) statusCell.innerHTML = this._statusCellHtml(row);
   }
 
   _applyTodayPrefix(tr, row) {
@@ -142,11 +209,13 @@ export class TriageTableController {
     row.output['Observação'] = next;
     row.meta.editedByUser = true;
     row.meta.unchanged = false;
-    const input = tr.querySelector('input[data-field="Observação"]');
+    const input = tr.querySelector('[data-field="Observação"]');
     if (input) {
       input.value = next;
       input.focus();
+      input.setSelectionRange(next.length, next.length);
     }
+    this._refreshRowState(tr, row);
     this.onRowUpdated(row, { skipFullRender: true });
   }
 
@@ -166,8 +235,8 @@ export class TriageTableController {
       return;
     }
     slot.innerHTML = `
-      <span class="suggest-pill">
-        Motivo sugerido (${esc(res.codigo)} - ${esc(res.desc.slice(0, 32))})
+      <span class="suggest-pill" title="${esc(`${res.codigo} — ${res.desc}`)}">
+        Motivo sugerido: <strong>${esc(res.codigo)}</strong> ${esc(res.desc.slice(0, 32))}${res.desc.length > 32 ? '…' : ''}
         <button type="button" class="btn btn-xs btn-primary"
           data-action="apply-suggested-motive"
           data-codigo="${esc(res.codigo)}"
@@ -176,25 +245,59 @@ export class TriageTableController {
     `;
   }
 
+  /**
+   * Liga navegação por teclado (↑ ↓ Enter) entre a busca e os itens do popover.
+   */
+  _wireListKeyboard(searchInput, listEl) {
+    let activeIdx = -1;
+    const items = () => Array.from(listEl.querySelectorAll('.popover-item'));
+    const setActive = (idx) => {
+      const all = items();
+      if (all.length === 0) return;
+      activeIdx = (idx + all.length) % all.length;
+      all.forEach((el, i) => el.classList.toggle('is-active', i === activeIdx));
+      all[activeIdx].scrollIntoView({ block: 'nearest' });
+    };
+    searchInput.addEventListener('input', () => {
+      activeIdx = -1;
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActive(activeIdx + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActive(activeIdx - 1);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const all = items();
+        const target = all[activeIdx >= 0 ? activeIdx : 0];
+        if (target) target.click();
+      }
+    });
+  }
+
   _openFrasesPopover(anchorBtn, tr, row) {
     this.closePopover();
     const pop = document.createElement('div');
     pop.className = 'floating-popover';
+    pop.dataset.anchorId = anchorBtn.dataset.anchorId || '';
     const frases = this.getFrases();
+    const todayShort = formatShortBRDate(todayUtc());
 
     pop.innerHTML = `
       <div class="floating-popover-head">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-          <strong>Inserir Frase Padrão</strong>
-          <span class="chip chip-info">Prefixo hoje: ${formatShortBRDate(todayUtc())}:</span>
+          <strong>Inserir frase padrão</strong>
+          <span class="chip chip-info">Entra como “${todayShort}: …”</span>
         </div>
-        <input type="text" class="cell-input" placeholder="Buscar frase padrão..." data-pop-search />
+        <input type="text" class="cell-input" placeholder="Buscar frase…" data-pop-search />
       </div>
       <div class="floating-popover-list" data-pop-list></div>
+      <div class="floating-popover-foot">↑ ↓ para navegar · Enter para inserir · Esc para fechar</div>
     `;
 
     document.body.appendChild(pop);
-    this._positionPopover(pop, anchorBtn);
     this.activePopover = pop;
 
     const searchInput = pop.querySelector('[data-pop-search]');
@@ -204,7 +307,7 @@ export class TriageTableController {
       const q = query.trim().toLowerCase();
       const filtered = frases.filter((f) => !q || f.frase.toLowerCase().includes(q) || (f.slug || '').includes(q));
       if (filtered.length === 0) {
-        listEl.innerHTML = '<div style="padding:12px;color:#64748b;">Nenhuma frase encontrada. Digite livremente no campo Observação.</div>';
+        listEl.innerHTML = '<div class="popover-empty">Nenhuma frase encontrada. Você pode digitar livremente no campo Observação.</div>';
         return;
       }
       listEl.innerHTML = filtered
@@ -212,7 +315,7 @@ export class TriageTableController {
           (f, idx) => `
           <button type="button" class="popover-item" data-frase-idx="${idx}">
             <span>${esc(f.frase)}</span>
-            ${f.slug ? `<span class="popover-item-sub">Intenção sugerida: ${esc(f.slug)}</span>` : ''}
+            ${f.slug ? `<span class="popover-item-sub">Sugere motivo: ${esc(f.slug)}</span>` : ''}
           </button>`
         )
         .join('');
@@ -220,7 +323,6 @@ export class TriageTableController {
       listEl.querySelectorAll('[data-frase-idx]').forEach((itemBtn) => {
         itemBtn.addEventListener('click', () => {
           const picked = filtered[Number(itemBtn.dataset.fraseIdx)];
-          const todayShort = formatShortBRDate(todayUtc());
           const body = stripDatePrefix(picked.frase);
           const nextObs = `${todayShort}: ${body}`;
 
@@ -231,12 +333,13 @@ export class TriageTableController {
             row.meta.slug = picked.slug;
           }
 
-          const obsInput = tr.querySelector('input[data-field="Observação"]');
+          const obsInput = tr.querySelector('[data-field="Observação"]');
           if (obsInput) {
             obsInput.value = nextObs;
+            this._autoGrow(obsInput);
           }
 
-          // Sugestão não-rígida: se existir motivo mapeado e o campo atual estiver vazio ou sugestivo, oferece/aplica só se usuário clicar ou se estava vazio
+          // Sugestão não-rígida: só preenche o motivo automaticamente se ele estava vazio
           if (picked.slug) {
             const resolver = this.getMotiveResolver();
             const res = resolver.resolve(row.meta.codCliente, picked.slug);
@@ -252,7 +355,7 @@ export class TriageTableController {
           }
 
           this._refreshObsSuggestion(tr, row);
-          tr.classList.add('row-edited');
+          this._refreshRowState(tr, row);
           this.closePopover();
           this.onRowUpdated(row, { skipFullRender: true });
         });
@@ -260,7 +363,9 @@ export class TriageTableController {
     };
 
     searchInput.addEventListener('input', () => renderList(searchInput.value));
+    this._wireListKeyboard(searchInput, listEl);
     renderList();
+    this._positionPopover(pop, anchorBtn);
     searchInput.focus();
   }
 
@@ -268,32 +373,36 @@ export class TriageTableController {
     this.closePopover();
     const resolver = this.getMotiveResolver();
     const clientMotives = resolver.getClientMotives(row.meta.codCliente);
+    const currentCode = String(row.output['Motivo'] ?? '').trim();
 
     const pop = document.createElement('div');
     pop.className = 'floating-popover';
+    pop.dataset.anchorId = anchorBtn.dataset.anchorId || '';
     pop.innerHTML = `
       <div class="floating-popover-head">
-        <strong>Motivos do Cliente ${esc(row.meta.codCliente)} (${clientMotives.length})</strong>
-        <input type="text" class="cell-input" placeholder="Buscar código ou descrição..." data-pop-search />
-        <div class="combo-row">
-          <input type="text" class="cell-input" placeholder="Ou código/motivo manual..." value="${esc(row.output['Motivo'])}" data-pop-manual />
-          <button type="button" class="btn btn-xs btn-primary" data-pop-apply-manual>Usar</button>
-        </div>
+        <strong>Motivos do cliente ${esc(row.meta.codCliente)} <span class="sub-line" style="display:inline;">(${clientMotives.length} disponíveis)</span></strong>
+        <input type="text" class="cell-input" placeholder="Buscar código ou descrição…" data-pop-search />
       </div>
       <div class="floating-popover-list" data-pop-list></div>
+      <div class="floating-popover-head" style="border-top:1px solid var(--border-soft);border-bottom:none;">
+        <div class="combo-row">
+          <input type="text" class="cell-input" placeholder="Outro código (manual)…" value="${esc(currentCode)}" data-pop-manual />
+          <button type="button" class="btn btn-xs btn-primary" data-pop-apply-manual>Usar</button>
+          ${currentCode ? '<button type="button" class="btn btn-xs btn-danger-ghost" data-pop-clear title="Deixar o motivo vazio">Limpar</button>' : ''}
+        </div>
+      </div>
     `;
 
     document.body.appendChild(pop);
-    this._positionPopover(pop, anchorBtn);
     this.activePopover = pop;
 
     const searchInput = pop.querySelector('[data-pop-search]');
     const manualInput = pop.querySelector('[data-pop-manual]');
     const manualBtn = pop.querySelector('[data-pop-apply-manual]');
+    const clearBtn = pop.querySelector('[data-pop-clear]');
     const listEl = pop.querySelector('[data-pop-list]');
 
-    manualBtn.addEventListener('click', () => {
-      const val = manualInput.value.trim();
+    const applyManual = (val) => {
       row.output['Motivo'] = val;
       const found = resolver.findByCodeOrDesc(row.meta.codCliente, val);
       row.meta.resolvedMotiveDesc = found ? found.desc : '';
@@ -303,7 +412,16 @@ export class TriageTableController {
       row.meta.unchanged = false;
       this.closePopover();
       this.onRowUpdated(row, { skipFullRender: false });
+    };
+
+    manualBtn.addEventListener('click', () => applyManual(manualInput.value.trim()));
+    manualInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyManual(manualInput.value.trim());
+      }
     });
+    if (clearBtn) clearBtn.addEventListener('click', () => applyManual(''));
 
     const renderList = (query = '') => {
       const q = query.trim().toLowerCase();
@@ -311,14 +429,15 @@ export class TriageTableController {
         (m) => !q || m.codigo.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q)
       );
       if (filtered.length === 0) {
-        listEl.innerHTML = `<div style="padding:12px;color:#64748b;">Nenhum motivo encontrado no dicionário para o cliente ${esc(row.meta.codCliente)}. Use o campo manual acima ou importe motivos atualizados.</div>`;
+        listEl.innerHTML = `<div class="popover-empty">Nenhum motivo encontrado para o cliente ${esc(row.meta.codCliente)}. Use o campo manual abaixo ou importe o dicionário de motivos atualizado.</div>`;
         return;
       }
       listEl.innerHTML = filtered
         .map(
           (m) => `
-          <button type="button" class="popover-item" data-code="${esc(m.codigo)}" data-desc="${esc(m.desc)}">
-            <span><strong>${esc(m.codigo)}</strong> — ${esc(m.desc)}</span>
+          <button type="button" class="popover-item ${m.codigo === currentCode ? 'is-current' : ''}" data-code="${esc(m.codigo)}" data-desc="${esc(m.desc)}">
+            <span><strong class="mono">${esc(m.codigo)}</strong> — ${esc(m.desc)}</span>
+            ${m.codigo === currentCode ? '<span class="popover-item-sub">Selecionado atualmente</span>' : ''}
           </button>`
         )
         .join('');
@@ -338,30 +457,86 @@ export class TriageTableController {
     };
 
     searchInput.addEventListener('input', () => renderList(searchInput.value));
+    this._wireListKeyboard(searchInput, listEl);
     renderList();
+    this._positionPopover(pop, anchorBtn);
     searchInput.focus();
   }
 
+  /** Posiciona abaixo do botão; se não couber, abre para cima. */
   _positionPopover(pop, anchor) {
     const rect = anchor.getBoundingClientRect();
-    const top = Math.min(window.innerHeight - 360, rect.bottom + 4);
-    const left = Math.min(window.innerWidth - 380, Math.max(10, rect.left));
-    pop.style.top = `${Math.max(10, top)}px`;
+    const h = pop.offsetHeight;
+    const w = pop.offsetWidth;
+    let top = rect.bottom + 4;
+    if (top + h > window.innerHeight - 8 && rect.top - h - 4 > 8) {
+      top = rect.top - h - 4;
+    }
+    top = Math.max(8, Math.min(top, window.innerHeight - h - 8));
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
+    pop.style.top = `${top}px`;
     pop.style.left = `${left}px`;
   }
 
+  _statusCellHtml(row) {
+    const { meta } = row;
+    const chips = [];
+    if (!meta.hasDePara) chips.push('<span class="chip chip-danger">Sem De-Para</span>');
+    if (meta.needsMotivo) chips.push('<span class="chip chip-warn">Sem Motivo</span>');
+    if (meta.motiveConfidence === 'review' || meta.motiveConfidence === 'suggested') {
+      chips.push(
+        `<span class="chip chip-info" title="${meta.motiveConfidence === 'review' ? 'Mais de um motivo possível para este cliente' : 'Motivo sugerido por similaridade'}">${meta.motiveConfidence === 'review' ? 'Revisar motivo' : 'Motivo sugerido'}</span>`
+      );
+    }
+    if (meta.hasCaixaria) chips.push(`<span class="chip chip-warn" title="Qtd. pendente não é múltipla da embalagem">Caixa ×${esc(meta.multiplicador)}</span>`);
+    if (meta.hasValor) chips.push('<span class="chip chip-warn" title="Valor TOTVS mais de 3% acima do GTplan">Valor &gt;3%</span>');
+    if (meta.hasSpot) chips.push('<span class="chip chip-info" title="Item fora de contrato (SemContrato)">Spot</span>');
+    if (meta.unchanged) chips.push('<span class="chip chip-neutral" title="Observação igual à já enviada">Sem alteração</span>');
+    if (!meta.unchanged && !meta.needsMotivo && meta.hasDePara) chips.push(`<span class="chip chip-success">${icon('check')} Pronta</span>`);
+
+    return `
+      <div class="chip-stack">${chips.join('')}</div>
+      <div class="row-num" style="margin-top:5px;">#${row.rowIndex}</div>
+    `;
+  }
+
+  _renderEmpty() {
+    const { hasCsv, hasFilters } = this.getEmptyContext();
+    if (!hasCsv) {
+      return `
+        <tr>
+          <td colspan="6" class="empty-state">
+            <h3>Comece carregando os arquivos</h3>
+            <p>O motor cruza o CSV do portal com a base TOTVS, sugere Motivo e Observação para cada linha e gera o arquivo de resposta.</p>
+            <ol class="empty-steps">
+              <li><span class="step-n">01.</span><span><strong>CSV do GTplan</strong><br><span class="sub-line">exportado do portal</span></span></li>
+              <li><span class="step-n">02.</span><span><strong>Base TOTVS</strong><br><span class="sub-line">bimestreamil.xlsx</span></span></li>
+              <li><span class="step-n">03.</span><span><strong>Revise as pendências</strong><br><span class="sub-line">De-Para e Motivo</span></span></li>
+              <li><span class="step-n">04.</span><span><strong>Exporte o CSV</strong><br><span class="sub-line">e importe no GTplan</span></span></li>
+            </ol>
+          </td>
+        </tr>`;
+    }
+    return `
+      <tr>
+        <td colspan="6" class="empty-state">
+          <h3>Nenhuma linha encontrada</h3>
+          <p>${hasFilters ? 'Nenhuma linha corresponde aos filtros atuais.' : 'O CSV carregado não tem linhas.'}</p>
+          ${hasFilters ? '<button type="button" class="btn btn-sm" data-action="clear-filters">Limpar filtros</button>' : ''}
+        </td>
+      </tr>`;
+  }
+
   render(filteredRows, page = 1) {
+    this.closePopover();
+    this.lastFilteredRows = filteredRows;
     const total = filteredRows.length;
     const totalPages = Math.max(1, Math.ceil(total / this.pageSize));
+    const prevPage = this.currentPage;
     this.currentPage = Math.max(1, Math.min(page, totalPages));
 
     if (total === 0) {
-      this.tbodyEl.innerHTML = `
-        <tr>
-          <td colspan="8" class="empty-state">
-            Nenhuma linha corresponde ao filtro atual. Arraste seu CSV do GTplan (24 colunas) e o Excel do TOTVS acima para começar.
-          </td>
-        </tr>`;
+      this.tbodyEl.innerHTML = this._renderEmpty();
       this.paginationEl.innerHTML = '';
       return;
     }
@@ -369,6 +544,7 @@ export class TriageTableController {
     const start = (this.currentPage - 1) * this.pageSize;
     const pageRows = filteredRows.slice(start, start + this.pageSize);
     const resolver = this.getMotiveResolver();
+    const todayShort = formatShortBRDate(todayUtc());
 
     const html = pageRows
       .map((row) => {
@@ -379,80 +555,74 @@ export class TriageTableController {
           ? `${matchedMotive.codigo} — ${matchedMotive.desc}`
           : meta.resolvedMotiveDesc && motiveCode
             ? `${motiveCode} — ${meta.resolvedMotiveDesc}`
-            : motiveCode || 'Selecionar motivo...';
+            : motiveCode || 'Selecionar motivo…';
 
-        const chips = [];
-        if (!meta.hasDePara) {
-          chips.push(`<span class="chip chip-danger">Sem De-Para</span>`);
-        }
-        if (meta.needsMotivo) {
-          chips.push(`<span class="chip chip-warn">Sem Motivo</span>`);
-        }
-        if (meta.motiveConfidence === 'review' || meta.motiveConfidence === 'suggested') {
-          chips.push(`<span class="chip chip-info">${meta.motiveConfidence === 'review' ? 'Revisar Motivo' : 'Sugestão'}</span>`);
-        }
-        if (meta.hasCaixaria) chips.push(`<span class="chip chip-warn">Caixaria ×${meta.multiplicador}</span>`);
-        if (meta.hasValor) chips.push(`<span class="chip chip-warn">Valor >3%</span>`);
-        if (meta.hasSpot) chips.push(`<span class="chip chip-info">Spot</span>`);
-        if (meta.unchanged) chips.push(`<span class="chip chip-neutral">Sem Alt.</span>`);
-        if (!meta.unchanged && !meta.needsMotivo && meta.hasDePara) {
-          chips.push(`<span class="chip chip-success">Pronta</span>`);
-        }
+        const ocExterno =
+          raw['Cód. OC Externo'] && raw['Cód. OC Externo'] !== '0'
+            ? `<span class="kv">Ext. <span class="mono">${esc(raw['Cód. OC Externo'])}</span></span>`
+            : '';
 
-        const ocExterno = raw['Cód. OC Externo'] && raw['Cód. OC Externo'] !== '0'
-          ? `<div class="sub-line mono">Ext: ${esc(raw['Cód. OC Externo'])}</div>`
-          : '';
-
-        const trClasses = [
-          meta.needsMotivo || !meta.hasDePara ? 'row-needs-action' : '',
-          meta.editedByUser ? 'row-edited' : ''
-        ]
-          .filter(Boolean)
-          .join(' ');
+        const trClasses = [rowStatusClass(meta), meta.editedByUser ? 'row-edited' : ''].filter(Boolean).join(' ');
+        const anchor = `r${row.rowIndex}`;
+        const invNova = isInvalidDate('Nova Prev. Entrega', output['Nova Prev. Entrega']);
+        const invDtNf = isInvalidDate('Dt. NF', output['Dt. NF']);
 
         return `
           <tr data-row-index="${row.rowIndex}" class="${trClasses}">
+            <td data-status-cell>${this._statusCellHtml(row)}</td>
             <td>
-              <div class="mono">#${row.rowIndex}</div>
-              <div class="chip-stack" style="margin-top:4px;">${chips.join('')}</div>
+              <div class="cell-line">
+                <span class="mono strong">OC ${esc(raw['Núm. OC'])}</span>
+                ${ocExterno}
+              </div>
+              <div class="cell-line" title="${esc(`${meta.codCliente} — ${meta.cliente} · ${meta.estab}`)}">
+                <span class="chip chip-neutral chip-square mono">${esc(meta.codCliente)}</span>
+                <span class="truncate" style="flex:1;">${esc(meta.cliente)}</span>
+              </div>
+              <div class="sub-line truncate">${esc(meta.estab)}</div>
+              <div class="sub-line">${
+                meta.hasTotvs
+                  ? `TOTVS <span class="mono">${esc(meta.totvsPedido)}</span>`
+                  : '<span class="muted">Sem pedido TOTVS</span>'
+              }</div>
             </td>
             <td>
-              <div><span class="chip chip-neutral mono">${esc(meta.codCliente)}</span> <strong>${esc(meta.cliente)}</strong></div>
-              <div class="sub-line">${esc(meta.estab)}</div>
+              <div class="cell-line">
+                <span class="mono">${esc(raw['Cód. Item'])}</span>
+                ${
+                  meta.codCBS
+                    ? `<span class="chip chip-success chip-square mono" title="Código CBS (TOTVS)">CBS ${esc(meta.codCBS)}</span>`
+                    : `<button type="button" class="btn btn-xs btn-ghost" data-action="link-depara" title="Cadastrar De-Para para este item">${icon('plus')} Vincular CBS</button>`
+                }
+              </div>
+              <div class="sub-line clamp-2" title="${esc(raw['Desc. Item'])}">${esc(raw['Desc. Item'])}</div>
+              <div class="kv">Qtd <b class="mono">${esc(raw['Qtd. Pendente'])}</b> · R$ <b class="mono">${esc(raw['Val. Unit.'])}</b></div>
             </td>
             <td>
-              <div class="mono"><strong>${esc(raw['Núm. OC'])}</strong></div>
-              ${ocExterno}
-              <div class="sub-line">${meta.hasTotvs ? `TOTVS: <span class="mono">${esc(meta.totvsPedido)}</span>` : '<span style="color:#94a3b8;">Sem pedido TOTVS</span>'}</div>
-              <div class="sub-line">Prev. Atual: <span class="mono">${esc(raw['Prev. Entrega Atual'] || '-')}</span></div>
-            </td>
-            <td style="max-width:250px;">
-              <div class="mono">${esc(raw['Cód. Item'])} ${meta.codCBS ? `<span class="chip chip-success">CBS ${esc(meta.codCBS)}</span>` : `<button type="button" class="btn btn-xs" data-action="link-depara">+ Vincular CBS</button>`}</div>
-              <div class="sub-line" title="${esc(raw['Desc. Item'])}">${esc(raw['Desc. Item'])}</div>
-              <div class="sub-line mono">Qtd: ${esc(raw['Qtd. Pendente'])} | R$ ${esc(raw['Val. Unit.'])}</div>
-            </td>
-            <td>
-              <input type="text" class="cell-input cell-input-sm mono" data-field="Nova Prev. Entrega" value="${esc(output['Nova Prev. Entrega'])}" placeholder="DD/MM/AAAA" />
+              <div class="field-stack">
+                <label class="field-label" for="np-${anchor}" title="Nova previsão de entrega">Prev.</label>
+                <input id="np-${anchor}" type="text" class="cell-input mono ${invNova ? 'is-invalid' : ''}" data-field="Nova Prev. Entrega" value="${esc(output['Nova Prev. Entrega'])}" placeholder="DD/MM/AAAA" inputmode="numeric" />
+                <label class="field-label" for="nf-${anchor}">NF</label>
+                <input id="nf-${anchor}" type="text" class="cell-input mono" data-field="Núm. NF" value="${esc(output['Núm. NF'])}" placeholder="Nº NF / pedido" />
+                <label class="field-label" for="dn-${anchor}" title="Data da NF">Dt.NF</label>
+                <input id="dn-${anchor}" type="text" class="cell-input mono ${invDtNf ? 'is-invalid' : ''}" data-field="Dt. NF" value="${esc(output['Dt. NF'])}" placeholder="DD/MM/AAAA" inputmode="numeric" />
+              </div>
+              <div class="sub-line" title="Previsão atual no portal">Atual: <span class="mono">${esc(raw['Prev. Entrega Atual'] || '—')}</span></div>
             </td>
             <td>
-              <input type="text" class="cell-input cell-input-sm mono" data-field="Núm. NF" value="${esc(output['Núm. NF'])}" placeholder="NF" />
-              <input type="text" class="cell-input cell-input-sm mono" style="margin-top:4px;" data-field="Dt. NF" value="${esc(output['Dt. NF'])}" placeholder="DD/MM/AAAA" />
-            </td>
-            <td>
-              <button type="button" class="motive-picker-btn ${meta.needsMotivo ? 'missing' : ''}" data-action="open-motives" data-popover-trigger title="${esc(motiveLabel)}">
+              <button type="button" class="motive-picker-btn ${meta.needsMotivo ? 'missing' : ''}" data-action="open-motives" data-popover-trigger data-anchor-id="m-${anchor}" title="${esc(motiveLabel)}">
                 <span class="motive-picker-label">${esc(motiveLabel)}</span>
-                <span>▾</span>
+                <span class="motive-picker-caret">${icon('chevron-down')}</span>
               </button>
-              <div class="sub-line">Cliente ${esc(meta.codCliente)}</div>
             </td>
             <td>
               <div class="combo-wrap">
-                <div class="combo-row">
-                  <input type="text" class="cell-input" data-field="Observação" value="${esc(output['Observação'])}" placeholder="Digite livremente ou escolha uma frase..." />
-                  <button type="button" class="btn btn-xs" data-action="prefix-today" title="Inserir prefixo dd/mm:">${formatShortBRDate(todayUtc())}:</button>
-                  <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger>Frases ▾</button>
+                <textarea class="cell-input" rows="2" data-field="Observação" placeholder="Digite livremente ou escolha uma frase padrão…" aria-label="Observação da linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
+                <div class="obs-actions">
+                  <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}">Frases padrão ${icon('chevron-down')}</button>
+                  <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">Prefixo ${todayShort}:</button>
+                  <span data-obs-suggestion></span>
                 </div>
-                <div data-obs-suggestion></div>
               </div>
             </td>
           </tr>
@@ -461,20 +631,29 @@ export class TriageTableController {
       .join('');
 
     this.tbodyEl.innerHTML = html;
+    this.tbodyEl.querySelectorAll('textarea[data-field="Observação"]').forEach((ta) => this._autoGrow(ta));
 
-    this.paginationEl.innerHTML = `
-      <div>Exibindo <strong>${start + 1}</strong>–<strong>${Math.min(start + pageRows.length, total)}</strong> de <strong>${total}</strong> linhas</div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button type="button" class="btn btn-xs" data-page="${this.currentPage - 1}" ${this.currentPage <= 1 ? 'disabled' : ''}>← Anterior</button>
-        <span>Página ${this.currentPage} de ${totalPages}</span>
-        <button type="button" class="btn btn-xs" data-page="${this.currentPage + 1}" ${this.currentPage >= totalPages ? 'disabled' : ''}>Próxima →</button>
-      </div>
-    `;
+    this.paginationEl.innerHTML =
+      totalPages > 1
+        ? `
+      <div>Exibindo <strong>${start + 1}</strong>–<strong>${Math.min(start + pageRows.length, total)}</strong> de <strong>${total.toLocaleString('pt-BR')}</strong></div>
+      <div class="pager">
+        <button type="button" class="btn btn-xs" data-page="1" ${this.currentPage <= 1 ? 'disabled' : ''} title="Primeira página" aria-label="Primeira página">${icon('chevron-left')}${icon('chevron-left', 'icon-tight')}</button>
+        <button type="button" class="btn btn-xs" data-page="${this.currentPage - 1}" ${this.currentPage <= 1 ? 'disabled' : ''}>${icon('chevron-left')} Anterior</button>
+        <span>Página <strong>${this.currentPage}</strong> de ${totalPages}</span>
+        <button type="button" class="btn btn-xs" data-page="${this.currentPage + 1}" ${this.currentPage >= totalPages ? 'disabled' : ''}>Próxima ${icon('chevron-right')}</button>
+        <button type="button" class="btn btn-xs" data-page="${totalPages}" ${this.currentPage >= totalPages ? 'disabled' : ''} title="Última página" aria-label="Última página">${icon('chevron-right', 'icon-tight')}${icon('chevron-right')}</button>
+      </div>`
+        : `<div>${total.toLocaleString('pt-BR')} linha${total === 1 ? '' : 's'}</div>`;
 
     this.paginationEl.querySelectorAll('[data-page]').forEach((pBtn) => {
       pBtn.addEventListener('click', () => {
         this.render(filteredRows, Number(pBtn.dataset.page));
       });
     });
+
+    if (this.scrollEl && prevPage !== this.currentPage) {
+      this.scrollEl.scrollTop = 0;
+    }
   }
 }
