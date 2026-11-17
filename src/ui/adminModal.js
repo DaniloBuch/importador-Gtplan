@@ -24,7 +24,8 @@ export class AdminModalController {
     getLoadedClients,
     onConfigChanged,
     onResetConfig,
-    showToast
+    showToast,
+    cloud
   }) {
     this.backdropEl = backdropEl;
     this.titleEl = titleEl;
@@ -37,6 +38,7 @@ export class AdminModalController {
     this.onConfigChanged = onConfigChanged;
     this.onResetConfig = onResetConfig;
     this.showToast = showToast;
+    this.cloud = cloud || null;
 
     this.activeTab = 'motives';
     this.prefillDePara = null;
@@ -87,7 +89,8 @@ export class AdminModalController {
       rules: 'Prazos e feriados',
       depara: 'Vínculos de itens e frases',
       bases: 'Atualizar bases e backup',
-      explorer: 'Consultar bases'
+      explorer: 'Consultar bases',
+      cloud: 'Nuvem (equipe)'
     };
     if (this.titleEl) this.titleEl.textContent = titles[this.activeTab] || 'Configurações';
 
@@ -96,6 +99,7 @@ export class AdminModalController {
     else if (this.activeTab === 'depara') this._renderDeParaFrasesTab();
     else if (this.activeTab === 'bases') this._renderBasesBackupTab();
     else if (this.activeTab === 'explorer') this._renderExplorerTab();
+    else if (this.activeTab === 'cloud') this._renderCloudTab();
   }
 
   _renderMotivesTab() {
@@ -424,8 +428,9 @@ export class AdminModalController {
             <input name="descItem" value="${esc(pre.descItem || '')}" placeholder="Descrição no portal" />
           </div>
           <div class="form-field">
-            <label>Cód. CBS (TOTVS) *</label>
-            <input name="codCBS" required placeholder="Ex: 001369" />
+            <label>Cód. CBS (TOTVS) * — vários? separe por vírgula</label>
+            <input name="codCBS" required placeholder="Ex: 005958, 000445" />
+
           </div>
           <div class="form-field">
             <label>Unidades por caixa</label>
@@ -488,16 +493,30 @@ export class AdminModalController {
     this.bodyEl.querySelector('#form-add-depara').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      config.customDePara.push({
+      const codes = String(fd.get('codCBS') || '')
+        .split(/[,;\s]+/)
+        .map((c) => c.replace(/\D/g, ''))
+        .filter(Boolean)
+        .map((c) => c.padStart(6, '0'));
+      if (!codes.length) return;
+      const base = {
         codCliente: String(fd.get('codCliente') || '').trim(),
         codItem: String(fd.get('codItem') || '').trim(),
         descItem: String(fd.get('descItem') || '').trim(),
-        codCBS: String(fd.get('codCBS') || '').trim().padStart(6, '0'),
         mult: Math.max(1, Number(fd.get('mult')) || 1)
-      });
+      };
+      let added = 0;
+      for (const codCBS of codes) {
+        const dup = config.customDePara.some(
+          (d) => d.codItem === base.codItem && d.codCBS === codCBS && (d.codCliente || '') === base.codCliente
+        );
+        if (dup) continue;
+        config.customDePara.push({ ...base, codCBS, createdAt: new Date().toISOString() });
+        added++;
+      }
       this.prefillDePara = null;
       await this.onConfigChanged(config, true);
-      this.showToast('De-Para salvo e lote reprocessado.');
+      this.showToast(added ? `${added} vínculo(s) salvo(s) e lote recalculado.` : 'Esses vínculos já existiam.');
       this.render();
     });
 
@@ -527,6 +546,119 @@ export class AdminModalController {
         await this.onConfigChanged(config, false);
         this.render();
       });
+    });
+  }
+
+  _renderCloudTab() {
+    if (!this.cloud) {
+      this.bodyEl.innerHTML = '<div class="callout">Nuvem indisponível nesta versão.</div>';
+      return;
+    }
+    const { cfg, user, status } = this.cloud.getState();
+    const nVinculos = (this.getConfig().customDePara || []).length;
+
+    const statusBox =
+      status.mode === 'cloud'
+        ? `<div class="callout callout-success"><strong>Conectado como ${esc(user?.email || '')}.</strong> Vínculos De-Para, motivos revisados, frases, feriados e prazos são compartilhados com a equipe.</div>`
+        : status.mode === 'error'
+          ? `<div class="callout callout-warn"><strong>Problema com a nuvem:</strong> ${esc(status.message || '')}. Os dados continuam salvos neste navegador.</div>`
+          : `<div class="callout"><strong>Hoje tudo fica só neste navegador.</strong> Se limpar os dados do navegador ou trocar de computador, os ${nVinculos} vínculo(s) e as configurações se perdem (a não ser que tenha um backup). Conecte a nuvem para guardar com segurança e compartilhar com a equipe.</div>`;
+
+    this.bodyEl.innerHTML = `
+      ${statusBox}
+
+      ${
+        user
+          ? `
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <button type="button" class="btn btn-primary" id="btn-cloud-upload" title="Envia para a nuvem os vínculos e configurações que existem só neste navegador (não apaga nada lá)">Enviar dados deste navegador para a nuvem</button>
+          <button type="button" class="btn" id="btn-cloud-reload">Atualizar da nuvem</button>
+          <button type="button" class="btn btn-danger-ghost" id="btn-cloud-logout" style="margin-left:auto;">Sair</button>
+        </div>
+        <div class="sub-line">Projeto: <span class="mono">${esc(cfg.url)}</span></div>`
+          : `
+        <form id="form-cloud" class="form-grid" autocomplete="on">
+          <div class="form-field" style="grid-column:span 2;">
+            <label>URL do projeto Supabase</label>
+            <input name="url" required value="${esc(cfg.url)}" placeholder="https://xxxx.supabase.co" />
+          </div>
+          <div class="form-field" style="grid-column:span 2;">
+            <label>Chave pública (anon key)</label>
+            <input name="anonKey" required value="${esc(cfg.anonKey)}" placeholder="eyJhbGciOi…" />
+          </div>
+          <div class="form-field">
+            <label>E-mail</label>
+            <input name="email" type="email" required autocomplete="username" />
+          </div>
+          <div class="form-field">
+            <label>Senha</label>
+            <input name="password" type="password" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn btn-primary">Entrar</button>
+        </form>
+        ${cfg.url ? '<button type="button" class="btn btn-xs btn-ghost" id="btn-cloud-forget">Esquecer este projeto</button>' : ''}`
+      }
+
+      <details>
+        <summary><strong>Como configurar a nuvem (uma vez só)</strong></summary>
+        <ol class="sub-line" style="line-height:1.6;">
+          <li>Crie um projeto gratuito em supabase.com.</li>
+          <li>No <em>SQL Editor</em>, rode o arquivo <span class="mono">supabase/schema.sql</span> deste projeto. Ele cria as tabelas e a regra de segurança que só libera usuários logados.</li>
+          <li>Em <em>Authentication → Providers → Email</em>, desligue o cadastro aberto, e em <em>Users → Add user</em> crie um login para cada pessoa da equipe.</li>
+          <li>Em <em>Project Settings → API</em>, copie a <em>Project URL</em> e a <em>anon public key</em> para os campos acima.</li>
+          <li>Depois de entrar, clique em <em>Enviar dados deste navegador para a nuvem</em> para levar os vínculos que você já cadastrou.</li>
+        </ol>
+        <div class="sub-line">Os arquivos CSV e a planilha TOTVS nunca vão para a nuvem: continuam sendo lidos só no seu navegador.</div>
+      </details>
+    `;
+
+    const run = async (btn, fn) => {
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Aguarde…';
+      try {
+        await fn();
+      } catch (err) {
+        this.showToast(`Nuvem: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+        this.render();
+      }
+    };
+
+    const form = this.bodyEl.querySelector('#form-cloud');
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      run(form.querySelector('button[type=submit]'), async () => {
+        const u = await this.cloud.connect({
+          url: fd.get('url'),
+          anonKey: fd.get('anonKey'),
+          email: fd.get('email'),
+          password: fd.get('password')
+        });
+        this.showToast(`Conectado como ${u?.email || 'usuário'}.`, 'success');
+      });
+    });
+    const on = (id, fn) => {
+      const b = this.bodyEl.querySelector(id);
+      b?.addEventListener('click', () => run(b, fn));
+    };
+    on('#btn-cloud-upload', async () => {
+      const r = await this.cloud.uploadLocal();
+      this.showToast(`Enviado: ${r.vinculos} vínculo(s) e ${r.configuracoes} configuração(ões) que faltavam na nuvem.`, 'success');
+    });
+    on('#btn-cloud-reload', async () => {
+      await this.cloud.reload();
+      this.showToast("Dados atualizados da nuvem.", "success");
+    });
+    on('#btn-cloud-logout', async () => {
+      await this.cloud.logout();
+      this.showToast('Você saiu da nuvem. Os dados seguem salvos neste navegador.');
+    });
+    on('#btn-cloud-forget', async () => {
+      await this.cloud.forget();
     });
   }
 

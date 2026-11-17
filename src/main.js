@@ -1,5 +1,6 @@
 import { SEED_DATA } from './data/seedData.js';
-import { IndexedDbRepository, normalizeFrases } from './storage/repository.js';
+import { IndexedDbRepository, newId, normalizeFrases } from './storage/repository.js';
+import { HybridRepository, SupabaseClient, loadCloudConfig, saveCloudConfig } from './storage/cloudRepository.js';
 import { buildGtplanCsvBatches, parseGtplanCsv } from './core/csv.js';
 import { readWorkbookSheets, rowsToObjects } from './core/xlsxReader.js';
 import { MotiveResolver } from './core/motiveResolver.js';
@@ -13,7 +14,47 @@ import { TriageTableController } from './ui/triageTable.js';
 import { AdminModalController } from './ui/adminModal.js';
 import { icon } from './ui/icons.js';
 
-const repo = new IndexedDbRepository(SEED_DATA);
+const cloudStatusEl = document.getElementById('cloud-status');
+let cloudStatus = { mode: 'local' };
+
+function renderCloudStatus() {
+  if (!cloudStatusEl) return;
+  const s = cloudStatus;
+  const map = {
+    local: ['is-local', 'Salvo neste navegador', 'Vínculos e configurações ficam só neste computador. Configure a nuvem em Configurações → Nuvem para compartilhar com a equipe.'],
+    cloud: ['is-cloud', 'Nuvem conectada', `Sincronizado com a equipe${s.user?.email ? ` · ${s.user.email}` : ''}`],
+    error: ['is-error', 'Nuvem com erro', s.message || 'Falha ao falar com a nuvem. Os dados seguem salvos neste navegador.']
+  };
+  const [cls, label, title] = map[s.mode] || map.local;
+  cloudStatusEl.className = `cloud-status ${cls}`;
+  cloudStatusEl.textContent = label;
+  cloudStatusEl.title = title;
+}
+
+function makeCloudClient() {
+  const cfg = loadCloudConfig();
+  return cfg.url && cfg.anonKey ? new SupabaseClient(cfg) : null;
+}
+
+const repo = new HybridRepository({
+  local: new IndexedDbRepository(SEED_DATA),
+  seedData: SEED_DATA,
+  client: makeCloudClient(),
+  onStatus: (s) => {
+    const wasError = cloudStatus.mode === 'error';
+    cloudStatus = s;
+    renderCloudStatus();
+    if (s.mode === 'error' && !wasError) showToast(s.message || 'Falha na nuvem.', 'error');
+  }
+});
+
+/** Recarrega a configuração (ex.: depois de login/logout na nuvem) e reprocessa o lote. */
+async function reloadConfig() {
+  state.config = await repo.load();
+  rebuildIndexes();
+  if (state.csvParsed) reprocessRows({ preserveEdited: true, silent: true, keepPage: true });
+  else renderAll();
+}
 
 const state = {
   config: null,
@@ -103,7 +144,7 @@ function rebuildIndexes() {
   state.hospitalIdx = buildHospitalIndex(cfg.hospitais, cfg.clientRules);
 }
 
-function reprocessRows({ preserveEdited = true } = {}) {
+function reprocessRows({ preserveEdited = true, silent = false, keepPage = false } = {}) {
   if (!state.csvParsed) {
     state.processedRows = [];
     renderAll();
@@ -131,7 +172,8 @@ function reprocessRows({ preserveEdited = true } = {}) {
   const elapsed = Math.round(performance.now() - t0);
 
   populateFilterDropdowns();
-  renderAll();
+  renderAll(keepPage ? tableCtrl.currentPage : 1);
+  if (silent) return;
   const kept = previousEdited.size > 0 ? ` (${fmt(previousEdited.size)} edições manuais mantidas)` : '';
   if (!state.totvsIdx) {
     // Sem a base TOTVS o motor não acha pedido/NF: quase nada é preenchido. Deixa isso explícito.
@@ -285,6 +327,30 @@ const tableCtrl = new TriageTableController({
       tableCtrl.render(filtered, tableCtrl.currentPage);
     }
   },
+  onLinkCbs: async ({ codCliente, codItem, descItem, codes, mult }) => {
+    const cfg = state.config;
+    const list = cfg.customDePara || (cfg.customDePara = []);
+    let added = 0;
+    for (const codCBS of codes) {
+      const dup = list.some((d) => d.codItem === codItem && d.codCBS === codCBS && (d.codCliente || '') === codCliente);
+      if (dup) continue;
+      list.push({ id: newId(), codCliente, codItem, descItem, codCBS, mult, createdAt: new Date().toISOString() });
+      added++;
+    }
+    if (!added) {
+      showToast('Esse vínculo já existia.', 'info');
+      return;
+    }
+    const before = state.processedRows.filter((r) => r.meta.hasTotvs).length;
+    state.config = await repo.save(cfg);
+    rebuildIndexes();
+    reprocessRows({ preserveEdited: true, silent: true, keepPage: true });
+    const gained = state.processedRows.filter((r) => r.meta.hasTotvs).length - before;
+    showToast(
+      `Vinculado ${codItem} → ${codes.join(', ')}.${gained > 0 ? ` ${gained} linha(s) agora encontradas no TOTVS.` : ' Nenhuma linha nova cruzou com o TOTVS ainda.'}`,
+      gained > 0 ? 'success' : 'info'
+    );
+  },
   onOpenDeParaModal: (row) => {
     adminModal.open('depara', {
       codCliente: row.meta.codCliente,
@@ -322,6 +388,35 @@ const adminModal = new AdminModalController({
     rebuildIndexes();
     if (state.csvParsed) {
       reprocessRows({ preserveEdited: true });
+    }
+  },
+  cloud: {
+    getState: () => ({ cfg: loadCloudConfig(), user: repo.client?.user || null, status: cloudStatus }),
+    connect: async ({ url, anonKey, email, password }) => {
+      const cfg = { url: String(url).trim().replace(/\/+$/, ''), anonKey: String(anonKey).trim() };
+      const client = new SupabaseClient(cfg);
+      await client.signIn(String(email).trim(), password); // erro sobe para a tela
+      saveCloudConfig(cfg);
+      repo.setClient(client);
+      await reloadConfig();
+      return client.user;
+    },
+    reload: () => reloadConfig(),
+    logout: async () => {
+      repo.client?.signOut();
+      repo.setClient(makeCloudClient());
+      await reloadConfig();
+    },
+    forget: async () => {
+      repo.client?.signOut();
+      saveCloudConfig(null);
+      repo.setClient(null);
+      await reloadConfig();
+    },
+    uploadLocal: async () => {
+      const res = await repo.uploadLocal();
+      await reloadConfig();
+      return res;
     }
   },
   showToast
@@ -438,12 +533,12 @@ function renderIngest() {
   }
 }
 
-function renderAll() {
+function renderAll(page = 1) {
   renderIngest();
   renderKpis();
   const filtered = getFilteredRows();
   renderToolbar(filtered.length);
-  tableCtrl.render(filtered, 1);
+  tableCtrl.render(filtered, page);
 }
 
 // Drag & Drop handlers
@@ -715,9 +810,12 @@ wireDropzone(dzCsv, inpCsv, handleCsvFile);
 wireDropzone(dzTotvs, inpTotvs, handleTotvsFile);
 
 async function boot() {
+  renderCloudStatus();
   state.config = await repo.load();
   rebuildIndexes();
   renderAll();
 }
 
 boot();
+
+document.getElementById('cloud-status')?.addEventListener('click', () => adminModal.open('cloud'));

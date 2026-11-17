@@ -9,6 +9,21 @@ const DB_VERSION = 1;
 const STORE_NAME = 'kv_store';
 const STATE_KEY = 'app_config_v1';
 
+/** Identificador único para registros (vínculos De-Para etc.). */
+export function newId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  // Fallback (contexto sem randomUUID): UUID v4 com Math.random
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/** Garante que todo vínculo De-Para tenha id (necessário para sincronizar com a nuvem). */
+export function ensureDeParaIds(list) {
+  return (list || []).map((d) => (d.id ? d : { ...d, id: newId() }));
+}
+
 /** Bases de referência embutidas no app. Só ficam salvas no navegador se o usuário importar versões novas. */
 const BASE_KEYS = ['todasBases', 'hospitais', 'motivos', 'motiveSlugMap'];
 
@@ -111,6 +126,7 @@ export class IndexedDbRepository {
           for (const k of BASE_KEYS) merged[k] = this.seedData[k] || [];
         }
         merged.frases = normalizeFrases(merged.frases);
+        merged.customDePara = ensureDeParaIds(merged.customDePara);
         return merged;
       }
       const initial = createDefaultConfig(this.seedData);

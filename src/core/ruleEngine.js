@@ -81,6 +81,7 @@ export function indexTotvsWorkbook(sheets) {
 
   const byProdOc = new Map();
   const byProdToken = new Map();
+  const byOc = new Map();
 
   for (const row of dadosSimp) {
     const pedido = String(row['Pedido'] ?? '').trim();
@@ -112,6 +113,9 @@ export function indexTotvsWorkbook(sheets) {
       const k = `${produto}|${oc}`;
       if (!byProdOc.has(k)) byProdOc.set(k, []);
       byProdOc.get(k).push(parsedRow);
+      // Índice por OC: usado para sugerir qual CBS o TOTVS faturou quando a linha não cruza
+      if (!byOc.has(oc)) byOc.set(oc, []);
+      byOc.get(oc).push(parsedRow);
     }
 
     // Indexa também tokens numéricos da Msg. Nota caso cliente (ex: DASA) não use prefixo 450/400 na coluna OC
@@ -171,6 +175,7 @@ export function indexTotvsWorkbook(sheets) {
   return {
     byProdOc,
     byProdToken,
+    byOc,
     ajusteRemessaByNf,
     semContratoByCbs,
     lojasByClienteLoja,
@@ -207,7 +212,12 @@ export function buildDeParaIndex(todasBases = [], customDePara = []) {
     if (!byCbs.has(codCBS)) byCbs.set(codCBS, item);
 
     if (item.codCliente && item.codItem) {
-      byClientItem.set(`${item.codCliente}|${item.codItem}`, item);
+      const ck = `${item.codCliente}|${item.codItem}`;
+      if (!byClientItem.has(ck)) byClientItem.set(ck, []);
+      // Um item GTplan pode ter vários CBS (ex.: TOTVS fatura com código substituto)
+      if (!byClientItem.get(ck).some((x) => x.codCBS === codCBS)) byClientItem.get(ck).push(item);
+      // Vínculo exclusivo de um cliente não pode valer para os outros
+      return;
     }
 
     if (item.codItem && item.descItem) {
@@ -318,6 +328,18 @@ function resolveSlaAndRule({ codCliente, estab, totvsRow, hospitalIdx, leadtimeU
   return { sla: Math.max(1, sla + extraSla), uf, shortForaLtObs };
 }
 
+/** Semelhança simples entre descrições: fração de palavras (3+ letras ou números) em comum. 0..1 */
+export function descSimilarity(a, b) {
+  const words = (s) =>
+    new Set(normalizeText(s).split(' ').filter((w) => w.length >= 3 || /^\d+$/.test(w)));
+  const wa = words(a);
+  const wb = words(b);
+  if (!wa.size || !wb.size) return 0;
+  let common = 0;
+  for (const w of wa) if (wb.has(w)) common++;
+  return common / Math.min(wa.size, wb.size);
+}
+
 function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
   const codCliente = raw['Cód. Cliente'];
   const codItem = raw['Cód. Item'];
@@ -326,13 +348,13 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
   const codItemForn = pad6(raw['Cód. Item Fornecedor']);
 
   // Ordem de candidatos De-Para
-  const clientScoped = codItem ? deParaIdx.byClientItem.get(`${codCliente}|${codItem}`) : null;
+  const clientScoped = (codItem && deParaIdx.byClientItem.get(`${codCliente}|${codItem}`)) || [];
   const concatMatches = codItem && normDesc ? (deParaIdx.byConcat.get(`${codItem}|${normDesc}`) || []) : [];
   const codItemMatches = codItem ? (deParaIdx.byCodItem.get(codItem) || []) : [];
   const descMatches = normDesc ? (deParaIdx.byDesc.get(normDesc) || []) : [];
 
   let primaryItem =
-    clientScoped ||
+    clientScoped[0] ||
     concatMatches[0] ||
     codItemMatches[0] ||
     descMatches[0] ||
@@ -349,7 +371,7 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
     }
   };
 
-  if (clientScoped) pushCbs(clientScoped.codCBS);
+  for (const m of clientScoped) pushCbs(m.codCBS);
   for (const m of concatMatches) pushCbs(m.codCBS);
   for (const m of codItemMatches) pushCbs(m.codCBS);
   for (const m of descMatches) pushCbs(m.codCBS);
@@ -395,8 +417,36 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
     }
   }
 
+  // Se o TOTVS cruzou por um CBS alternativo, ele passa a ser o item principal (caixaria/mult. corretos)
+  if (totvsRow?.produto) {
+    const all = [...clientScoped, ...concatMatches, ...codItemMatches, ...descMatches];
+    const matchedItem = all.find((m) => m.codCBS === totvsRow.produto);
+    if (matchedItem) primaryItem = matchedItem;
+  }
+
   if (!primaryItem && totvsRow?.produto && deParaIdx.validCbsSet.has(totvsRow.produto)) {
     primaryItem = deParaIdx.byCbs.get(totvsRow.produto) || null;
+  }
+
+  // Sem cruzamento: lista o que o TOTVS tem nas mesmas OCs (o usuário pode vincular com 1 clique)
+  const ocSuggestions = [];
+  if (!totvsRow && totvsIdx?.byOc) {
+    const seen = new Set();
+    for (const oc of ocCandidates) {
+      for (const t of totvsIdx.byOc.get(oc) || []) {
+        if (seen.has(t.produto) || seenCbs.has(t.produto)) continue;
+        seen.add(t.produto);
+        ocSuggestions.push({
+          oc,
+          codCBS: t.produto,
+          desc: t.descrProdut,
+          pedido: t.pedido,
+          nf: t.notaFiscal,
+          score: descSimilarity(descItem, t.descrProdut)
+        });
+      }
+    }
+    ocSuggestions.sort((a, b) => b.score - a.score);
   }
 
   return {
@@ -404,7 +454,9 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
     codCBS: primaryItem?.codCBS || (totvsRow?.produto && deParaIdx.validCbsSet.has(totvsRow.produto) ? totvsRow.produto : ''),
     multiplicador: primaryItem?.mult || totvsRow?.qntdEmbalagem || 1,
     totvsRow,
-    matchedOc
+    matchedOc,
+    candidateCbs,
+    ocSuggestions
   };
 }
 
@@ -441,7 +493,7 @@ export function processFollowUpBatch(csvRows, context) {
     ...(totvsIdx?.leadtimeUF || {})
   };
 
-  return csvRows.map(({ rowIndex, raw }) => {
+  const processed = csvRows.map(({ rowIndex, raw }) => {
     const codCliente = raw['Cód. Cliente'];
     const estab = raw['Estab.'];
     const qtdPendente = parsePtBrNumber(raw['Qtd. Pendente']) || 0;
@@ -452,7 +504,7 @@ export function processFollowUpBatch(csvRows, context) {
     const obsAntiga = raw['Observação'] || '';
     const motivoAntigoRaw = raw['Motivo'] || '';
 
-    const { primaryItem, codCBS, multiplicador, totvsRow } = resolveDeParaAndTotvs({
+    const { primaryItem, codCBS, multiplicador, totvsRow, matchedOc, candidateCbs, ocSuggestions } = resolveDeParaAndTotvs({
       raw,
       deParaIdx,
       totvsIdx
@@ -686,6 +738,9 @@ export function processFollowUpBatch(csvRows, context) {
         hasDePara,
         hasTotvs,
         totvsPedido: totvsRow?.pedido || '',
+        totvsKey: totvsRow ? `${totvsRow.produto}|${matchedOc}` : '',
+        candidateCbs,
+        ocSuggestions,
         slug,
         resolvedMotiveDesc: resolvedMotive.desc || '',
         motiveConfidence, // 'confirmed' | 'exact' | 'review' | 'suggested' | 'missing' | 'manual'
@@ -699,4 +754,13 @@ export function processFollowUpBatch(csvRows, context) {
       }
     };
   });
+
+  // Remove das sugestões os itens TOTVS que já cruzaram com outra linha do CSV
+  const claimed = new Set(processed.map((r) => r.meta.totvsKey).filter(Boolean));
+  for (const r of processed) {
+    if (r.meta.ocSuggestions?.length) {
+      r.meta.ocSuggestions = r.meta.ocSuggestions.filter((s) => !claimed.has(`${s.codCBS}|${s.oc}`));
+    }
+  }
+  return processed;
 }
