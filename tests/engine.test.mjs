@@ -26,8 +26,6 @@ import {
   processFollowUpBatch
 } from '../src/core/ruleEngine.js';
 
-const REF_DIR = 'C:/Users/Usuario/.gemini/antigravity/brain/639d4218-bdbb-4951-9ea6-aaed3daed14f/scratch/gtplan_ref';
-const UPLOADED_MULTI_CSV = 'C:/Users/Usuario/.gemini/antigravity/brain/639d4218-bdbb-4951-9ea6-aaed3daed14f/.user_uploaded/media_1794770078130_50ecf9a7.csv';
 
 test('dates: addWorkdays skips weekends and holidays', () => {
   // Friday 2026-11-13 + 3 workdays with Tuesday 2026-11-17 as holiday => Thursday 2026-11-19
@@ -303,90 +301,44 @@ test('ruleEngine: handles Dasa rules (OC fallback, Santa Helena +2d, Santa Joana
   assert.equal(processed[3].output['Observação'], '15/11: Entrega prevista para 18/11');
 });
 
-test('integration: loads real bimestreamil (1).xlsx and processes real multi-estab & multi-client CSVs', async () => {
-  const xlsxPath = path.join(REF_DIR, 'bimestreamil (1).xlsx');
-  const xlsxBytes = new Uint8Array(await fs.readFile(xlsxPath));
-  const sheetsRaw = await readWorkbookSheets(xlsxBytes, [
+// Teste com arquivos reais (opcional). Aponte GTPLAN_REF_DIR para uma pasta com:
+//   bimestreamil.xlsx  e  um CSV do GTplan (qualquer nome terminando em .csv)
+// Ex.: GTPLAN_REF_DIR=./.testdata node --test tests/engine.test.mjs
+const REF_DIR = process.env.GTPLAN_REF_DIR || '';
+
+test('integration: arquivos reais preenchem NF, previsão e motivo', { skip: !REF_DIR && 'defina GTPLAN_REF_DIR' }, async () => {
+  const files = await fs.readdir(REF_DIR);
+  const xlsxName = files.find((n) => /^bimestreamil.*\.xlsx$/i.test(n));
+  const csvName = files.find((n) => /\.csv$/i.test(n));
+  assert.ok(xlsxName && csvName, `Esperado bimestreamil*.xlsx e um .csv em ${REF_DIR}`);
+
+  const sheetsRaw = await readWorkbookSheets(new Uint8Array(await fs.readFile(path.join(REF_DIR, xlsxName))), [
     'Dados Simplificados',
     'AjusteRemessa',
     'SemContrato',
     'LojasNoGtplan',
     'leadtime'
   ]);
-
   assert.ok(sheetsRaw['Dados Simplificados']?.length > 10, 'Dados Simplificados deve conter linhas');
-  assert.ok(sheetsRaw['LojasNoGtplan']?.length > 10, 'LojasNoGtplan deve conter linhas');
-
-  const sheets = {
-    'Dados Simplificados': rowsToObjects(sheetsRaw['Dados Simplificados'], 1),
-    AjusteRemessa: rowsToObjects(sheetsRaw['AjusteRemessa'] || [], 1),
-    SemContrato: rowsToObjects(sheetsRaw['SemContrato'] || [], 1),
-    LojasNoGtplan: rowsToObjects(sheetsRaw['LojasNoGtplan'] || [], 1),
-    leadtime: rowsToObjects(sheetsRaw['leadtime'] || [], 1)
-  };
-
+  const sheets = {};
+  for (const k of Object.keys(sheetsRaw)) sheets[k] = rowsToObjects(sheetsRaw[k], 1);
   const totvsIdx = indexTotvsWorkbook(sheets);
   assert.ok(totvsIdx.byProdOc.size > 0, 'Dados Simplificados indexados por Produto|OC');
-  assert.ok(totvsIdx.lojasByClienteLoja.size > 0, 'Lojas indexadas');
 
-  const csvText = await fs.readFile(path.join(REF_DIR, 'csv novo mais de um estabelecimento.csv'), 'utf8');
-  const parsedCsv = parseGtplanCsv(csvText);
+  const parsedCsv = parseGtplanCsv(await fs.readFile(path.join(REF_DIR, csvName), 'utf8'));
   assert.equal(parsedCsv.headers.length, 24);
   assert.ok(parsedCsv.rows.length > 0);
 
-  const resolver = new MotiveResolver({
-    motivos: SEED_DATA.motivos,
-    motiveSlugMap: SEED_DATA.motiveSlugMap
-  });
-  const deParaIdx = buildDeParaIndex(SEED_DATA.todasBases);
-  const hospitalIdx = buildHospitalIndex(SEED_DATA.hospitais);
-
   const processed = processFollowUpBatch(parsedCsv.rows, {
     totvsIdx,
-    deParaIdx,
-    hospitalIdx,
-    motiveResolver: resolver
+    deParaIdx: buildDeParaIndex(SEED_DATA.todasBases),
+    hospitalIdx: buildHospitalIndex(SEED_DATA.hospitais),
+    motiveResolver: new MotiveResolver({ motivos: SEED_DATA.motivos, motiveSlugMap: SEED_DATA.motiveSlugMap })
   });
-
   assert.equal(processed.length, parsedCsv.rows.length);
-  const withDePara = processed.filter((r) => r.meta.hasDePara).length;
-  assert.ok(withDePara > 0, `Esperado cruzar De-Para (>0), obtido ${withDePara}`);
-  assert.ok(totvsIdx.byProdOc.size > 0 && totvsIdx.byProdToken.size > 0, 'Índices TOTVS reais populados');
 
-  // Cruzamento real garantido usando Produto + OC existente dentro do bimestreamil (1).xlsx (001369 | 4504768284)
-  const sampleMatchRow = {
-    rowIndex: 1,
-    raw: {
-      ...parsedCsv.rows[0].raw,
-      'Cód. Cliente': '116',
-      'Núm. OC': '4504768284',
-      'Cód. Item Fornecedor': '001369',
-      'Qtd. Pendente': '100',
-      'Val. Unit.': '0.17'
-    }
-  };
-  const realCross = processFollowUpBatch([sampleMatchRow], {
-    totvsIdx,
-    deParaIdx,
-    hospitalIdx,
-    motiveResolver: resolver
-  });
-  assert.equal(realCross[0].meta.hasTotvs, true);
-  assert.equal(realCross[0].output['Núm. NF'], '001775927');
-
-  // Verifica parse do arquivo real multi-cliente enviado pelo usuário (Dasa + Amil)
-  const multiText = await fs.readFile(UPLOADED_MULTI_CSV, 'utf8');
-  const parsedMulti = parseGtplanCsv(multiText);
-  assert.ok(parsedMulti.rows.length >= 20, 'Arquivo multi-cliente deve ter >= 20 linhas');
-  const processedMulti = processFollowUpBatch(parsedMulti.rows, {
-    totvsIdx,
-    deParaIdx,
-    hospitalIdx,
-    motiveResolver: resolver
-  });
-  assert.equal(processedMulti.length, parsedMulti.rows.length);
-  const clientsFound = new Set(processedMulti.map((r) => r.meta.codCliente));
-  assert.ok(clientsFound.size >= 2, 'Deve conter múltiplos Cód. Cliente misturados');
-  assert.ok(clientsFound.has('33'), 'Deve conter cliente Dasa MV Soul (33)');
-  assert.ok(clientsFound.has('3'), 'Deve conter cliente Dasa H9J (3)');
+  const share = (fn) => processed.filter(fn).length / processed.length;
+  assert.ok(share((r) => r.meta.hasDePara) > 0.5, 'Maioria das linhas deve ter De-Para');
+  assert.ok(share((r) => r.meta.hasTotvs) > 0.3, 'Parte relevante das linhas deve cruzar com o TOTVS');
+  assert.ok(share((r) => r.output['Motivo'] && r.output['Observação']) > 0.5, 'Maioria das linhas deve sair com Motivo e Observação');
 });

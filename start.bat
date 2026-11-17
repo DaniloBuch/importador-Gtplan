@@ -1,5 +1,5 @@
 @echo off
 cd /d "%~dp0"
-start "" http://127.0.0.1:4173/
-node server.mjs
-pause
+rem Abre o Follow-up GTplan. Nao precisa instalar nada: o arquivo unico roda direto no navegador.
+rem (Se o Node.js estiver instalado e voce preferir o modo servidor, rode: node server.mjs)
+start "" "%~dp0dist\gtplan-followup.html"

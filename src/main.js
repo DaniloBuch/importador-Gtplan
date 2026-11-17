@@ -1,5 +1,5 @@
 import { SEED_DATA } from './data/seedData.js';
-import { IndexedDbRepository } from './storage/repository.js';
+import { IndexedDbRepository, normalizeFrases } from './storage/repository.js';
 import { buildGtplanCsvBatches, parseGtplanCsv } from './core/csv.js';
 import { readWorkbookSheets, rowsToObjects } from './core/xlsxReader.js';
 import { MotiveResolver } from './core/motiveResolver.js';
@@ -55,7 +55,6 @@ const tableScroll = document.getElementById('table-scroll');
 
 const btnReviewBadge = document.getElementById('btn-review-count');
 const btnOpenReview = document.getElementById('btn-open-review');
-const btnOpenExplorer = document.getElementById('btn-open-explorer');
 const btnOpenAdmin = document.getElementById('btn-open-admin');
 const btnExportCsv = document.getElementById('btn-export-csv');
 const btnReprocessForce = document.getElementById('btn-reprocess-force');
@@ -134,7 +133,12 @@ function reprocessRows({ preserveEdited = true } = {}) {
   populateFilterDropdowns();
   renderAll();
   const kept = previousEdited.size > 0 ? ` (${fmt(previousEdited.size)} edições manuais mantidas)` : '';
-  showToast(`${fmt(state.processedRows.length)} linhas processadas em ${elapsed} ms${kept}.`, 'success');
+  if (!state.totvsIdx) {
+    // Sem a base TOTVS o motor não acha pedido/NF: quase nada é preenchido. Deixa isso explícito.
+    showToast('CSV carregado, mas falta a Base TOTVS (passo 2). Sem ela as respostas não são preenchidas.', 'error');
+    return;
+  }
+  showToast(`${fmt(state.processedRows.length)} linhas preenchidas em ${elapsed} ms${kept}.`, 'success');
 }
 
 function populateFilterDropdowns() {
@@ -306,6 +310,7 @@ const adminModal = new AdminModalController({
     return Array.from(s).sort((a, b) => Number(a) - Number(b));
   },
   onConfigChanged: async (nextConfig, shouldReprocess) => {
+    nextConfig.frases = normalizeFrases(nextConfig.frases);
     state.config = await repo.save(nextConfig);
     rebuildIndexes();
     if (shouldReprocess && state.csvParsed) {
@@ -429,7 +434,7 @@ function renderIngest() {
     totvsTag.className = 'dz-tag dz-tag-warn';
     totvsAction.textContent = 'Carregar XLSX';
     dzTotvs.classList.add('missing');
-    metaTotvsEl.textContent = 'Linhas processadas sem pedido/NF do TOTVS. Carregue a base para completar.';
+    metaTotvsEl.textContent = 'Falta este arquivo: sem ele as colunas Nova Prev., NF, Motivo e Observação não são preenchidas.';
   }
 }
 
@@ -508,7 +513,7 @@ async function handleTotvsFile(file) {
       reprocessRows({ preserveEdited: true });
     } else {
       renderIngest();
-      showToast('Base TOTVS carregada. Agora carregue o CSV do GTplan.', 'success');
+      showToast('Base TOTVS carregada. Agora carregue o CSV do GTplan (passo 1).', 'success');
     }
   } catch (err) {
     metaTotvsEl.textContent = 'Falha ao ler o Excel TOTVS. Confira se é o bimestreamil.xlsx.';
@@ -660,7 +665,6 @@ inpSearch.addEventListener('input', () => {
 btnClearFilters.addEventListener('click', clearFilters);
 
 btnOpenReview.addEventListener('click', () => adminModal.open('motives'));
-btnOpenExplorer.addEventListener('click', () => adminModal.open('explorer'));
 btnOpenAdmin.addEventListener('click', () => adminModal.open('rules'));
 
 btnReprocessForce.addEventListener('click', () => {

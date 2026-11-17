@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GTplan Follow-up Studio</title>
+  <!-- FILE-GUARD:START (removido no build) -->
+  <script>
+    // Aberto com duplo clique (file://)? O navegador bloqueia os módulos JS e nada funciona.
+    // Redireciona para a versão de arquivo único, que roda offline sem servidor.
+    if (location.protocol === 'file:') location.replace('./dist/gtplan-followup.html');
+  </script>
+  <!-- FILE-GUARD:END -->
   <link rel="stylesheet" href="./styles/cbs-tokens.css" />
   <link rel="stylesheet" href="./styles/main.css" />
 </head>
@@ -19,12 +26,11 @@
     </div>
 
     <nav class="header-tools" aria-label="Ferramentas">
-      <button type="button" class="btn btn-header" id="btn-open-review" title="Ajustar qual código de motivo cada cliente usa para cada situação">
-        Revisar Motivos
+      <button type="button" class="btn btn-header" id="btn-open-review" title="Escolher qual código de motivo cada cliente usa em cada situação">
+        Revisar motivos
         <span class="badge-count" id="btn-review-count" hidden>0</span>
       </button>
-      <button type="button" class="btn btn-header" id="btn-open-explorer" title="Consultar De-Para, motivos, hospitais e frases cadastrados">Consultar Bases</button>
-      <button type="button" class="btn btn-header" id="btn-open-admin" title="Prazos, feriados, De-Para customizado, frases e backup">Configurações</button>
+      <button type="button" class="btn btn-header" id="btn-open-admin" title="Prazos, feriados, vínculos de itens, frases, bases e backup">Configurações</button>
     </nav>
 
     <button type="button" class="btn btn-export" id="btn-export-csv" disabled title="Gera o CSV de 24 colunas para importar no GTplan">
@@ -42,7 +48,7 @@
         </span>
         <div class="dropzone-info">
           <div class="dropzone-title">
-            CSV do GTplan
+            <span class="dz-step">1</span> CSV do GTplan
             <span class="dz-tag dz-tag-required" data-dz-tag>Obrigatório</span>
           </div>
           <div class="dropzone-meta" id="meta-csv">Arraste o CSV exportado do portal (24 colunas) ou clique para selecionar</div>
@@ -57,10 +63,10 @@
         </span>
         <div class="dropzone-info">
           <div class="dropzone-title">
-            Base TOTVS <span class="dz-file-hint">bimestreamil.xlsx</span>
-            <span class="dz-tag dz-tag-optional" data-dz-tag>Recomendado</span>
+            <span class="dz-step">2</span> Base TOTVS <span class="dz-file-hint">bimestreamil.xlsx</span>
+            <span class="dz-tag dz-tag-required" data-dz-tag>Obrigatório</span>
           </div>
-          <div class="dropzone-meta" id="meta-totvs">Sem ela não há pedido, NF nem previsão calculada. Arraste o Excel ou clique para selecionar</div>
+          <div class="dropzone-meta" id="meta-totvs">É dela que saem pedido, NF, previsão e motivo. Arraste o Excel ou clique para selecionar</div>
         </div>
         <span class="btn btn-sm" data-dz-action>Selecionar XLSX</span>
         <input type="file" id="inp-totvs" accept=".xlsx,.xlsm" />
@@ -136,11 +142,11 @@
         <button type="button" class="btn-close" id="admin-close" aria-label="Fechar (Esc)" title="Fechar (Esc)"><svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="modal-tabs" id="admin-tabs" role="tablist">
-        <button type="button" class="tab-btn active" data-tab="motives" role="tab">Revisão de Motivos</button>
-        <button type="button" class="tab-btn" data-tab="rules" role="tab">Prazos &amp; Feriados</button>
-        <button type="button" class="tab-btn" data-tab="depara" role="tab">De-Para &amp; Frases</button>
-        <button type="button" class="tab-btn" data-tab="bases" role="tab">Importar Bases &amp; Backup</button>
-        <button type="button" class="tab-btn" data-tab="explorer" role="tab">Consultar Bases</button>
+        <button type="button" class="tab-btn active" data-tab="motives" role="tab">Motivos por cliente</button>
+        <button type="button" class="tab-btn" data-tab="rules" role="tab">Prazos e feriados</button>
+        <button type="button" class="tab-btn" data-tab="depara" role="tab">Vínculos de itens e frases</button>
+        <button type="button" class="tab-btn" data-tab="bases" role="tab">Atualizar bases e backup</button>
+        <button type="button" class="tab-btn" data-tab="explorer" role="tab">Consultar bases</button>
       </div>
       <div class="modal-body" id="admin-body"></div>
     </div>
