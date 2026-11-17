@@ -13,6 +13,7 @@ import {
 import { TriageTableController } from './ui/triageTable.js';
 import { AdminModalController } from './ui/adminModal.js';
 import { icon } from './ui/icons.js';
+import { enableColumnResize } from './ui/columnResize.js';
 
 const cloudStatusEl = document.getElementById('cloud-status');
 let cloudStatus = { mode: 'local' };
@@ -819,3 +820,12 @@ async function boot() {
 boot();
 
 document.getElementById('cloud-status')?.addEventListener('click', () => adminModal.open('cloud'));
+
+// Colunas com largura ajustável (arrastar a borda do cabeçalho; duplo clique ajusta ao conteúdo)
+const btnResetCols = document.getElementById('btn-reset-cols');
+const colResizer = enableColumnResize(document.querySelector('table.triage-table.sheet'), {
+  onChange: (customized) => {
+    if (btnResetCols) btnResetCols.hidden = !customized;
+  }
+});
+btnResetCols?.addEventListener('click', () => colResizer.reset());

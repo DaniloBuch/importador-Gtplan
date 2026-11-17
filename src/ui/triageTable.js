@@ -70,10 +70,24 @@ export class TriageTableController {
       }
     });
 
-    // Popover acompanha a rolagem? Mais simples e previsível: fecha ao rolar a tabela.
-    if (this.scrollEl) {
-      this.scrollEl.addEventListener('scroll', () => this.closePopover(), { passive: true });
-    }
+    // Ao rolar (ou quando o layout se mexe e o navegador ajusta a rolagem sozinho), o popover
+    // acompanha o botão que o abriu. Só fecha se o botão sair da área visível da tabela.
+    const follow = () => {
+      const pop = this.activePopover;
+      if (!pop) return;
+      const anchor = pop.dataset.anchorId
+        ? this.tbodyEl.querySelector(`[data-anchor-id="${CSS.escape(pop.dataset.anchorId)}"]`)
+        : null;
+      if (!anchor || !anchor.isConnected) return this.closePopover();
+      const a = anchor.getBoundingClientRect();
+      const box = (this.scrollEl || document.documentElement).getBoundingClientRect();
+      if (a.bottom < box.top || a.top > box.bottom || a.right < box.left || a.left > box.right) {
+        return this.closePopover();
+      }
+      this._positionPopover(pop, anchor);
+    };
+    if (this.scrollEl) this.scrollEl.addEventListener('scroll', follow, { passive: true });
+    window.addEventListener('resize', follow, { passive: true });
 
     // Navegação de planilha: Enter/↓ desce na mesma coluna, Shift+Enter/↑ sobe.
     // Na Observação, Enter também desce (o CSV não aceita quebra de linha).
@@ -350,14 +364,14 @@ export class TriageTableController {
       slot.innerHTML = '';
       return;
     }
+    // Botão compacto ao lado da Observação (não muda a altura da linha)
     slot.innerHTML = `
-      <span class="suggest-pill" title="${esc(`${res.codigo} — ${res.desc}`)}">
-        Motivo sugerido: <strong>${esc(res.codigo)}</strong> ${esc(res.desc.slice(0, 32))}${res.desc.length > 32 ? '…' : ''}
-        <button type="button" class="btn btn-xs btn-primary"
-          data-action="apply-suggested-motive"
-          data-codigo="${esc(res.codigo)}"
-          data-desc="${esc(res.desc)}">Aplicar</button>
-      </span>
+      <button type="button" class="obs-side-btn is-suggest"
+        data-action="apply-suggested-motive"
+        data-codigo="${esc(res.codigo)}"
+        data-desc="${esc(res.desc)}"
+        title="${esc(`Aplicar o motivo que combina com este texto: ${res.codigo} — ${res.desc}`)}"
+        aria-label="Aplicar motivo sugerido">${icon('wand')}</button>
     `;
   }
 
@@ -692,9 +706,9 @@ export class TriageTableController {
           cbsCell = `<button type="button" class="btn btn-xs btn-link-cbs is-missing" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}" title="Item sem De-Para: escolher o código CBS">${icon('plus')} Vincular</button>`;
         } else if (!meta.hasTotvs) {
           cbsCell = `
-            <span class="mono" title="Procurado no TOTVS como: ${esc((meta.candidateCbs || []).join(', '))}">${esc(meta.codCBS)}</span>
+            <div class="cbs-stack"><span class="mono" title="Procurado no TOTVS como: ${esc((meta.candidateCbs || []).join(', '))}">${esc(meta.codCBS)}</span>
             <button type="button" class="btn btn-xs btn-link-cbs ${likely ? 'has-hint' : ''}" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}"
-              title="${likely ? `O TOTVS faturou esta OC com ${esc(likely.codCBS)} — ${esc(likely.desc)}` : 'Não achado no TOTVS: vincular outro código CBS'}">${icon('plus')}${likely ? ` ${esc(likely.codCBS)}?` : ' CBS'}</button>`;
+              title="${likely ? `O TOTVS faturou esta OC com ${esc(likely.codCBS)} — ${esc(likely.desc)}` : 'Não achado no TOTVS: vincular outro código CBS'}">${icon('plus')}${likely ? ` ${esc(likely.codCBS)}?` : ' CBS'}</button></div>`;
         } else {
           cbsCell = `<span class="mono" title="Pedido TOTVS ${esc(meta.totvsPedido)}">${esc(meta.codCBS)}</span>`;
         }
@@ -728,11 +742,13 @@ export class TriageTableController {
               </button>
             </td>
             <td class="edit obs-cell">
-              <textarea class="cell-input" rows="1" data-field="Observação" placeholder="dd/mm: texto…" aria-label="Observação, linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
-              <div class="obs-actions">
-                <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}" title="Inserir frase padrão">Frases ${icon('chevron-down')}</button>
-                <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">${todayShort}:</button>
-                <span data-obs-suggestion></span>
+              <div class="obs-wrap">
+                <textarea class="cell-input" rows="1" data-field="Observação" placeholder="dd/mm: texto…" aria-label="Observação, linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
+                <div class="obs-side">
+                  <button type="button" class="obs-side-btn" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}" title="Inserir frase padrão" aria-label="Inserir frase padrão">${icon('list-plus')}</button>
+                  <button type="button" class="obs-side-btn" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início" aria-label="Prefixo de hoje">${icon('calendar')}</button>
+                  <span data-obs-suggestion></span>
+                </div>
               </div>
             </td>
           </tr>
