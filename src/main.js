@@ -1,6 +1,6 @@
 import { SEED_DATA } from './data/seedData.js';
 import { IndexedDbRepository, newId, normalizeFrases } from './storage/repository.js';
-import { HybridRepository, SupabaseClient, loadCloudConfig, saveCloudConfig } from './storage/cloudRepository.js';
+import { HAS_DEFAULT_CLOUD, HybridRepository, SupabaseClient, loadCloudConfig, saveCloudConfig } from './storage/cloudRepository.js';
 import { buildGtplanCsvBatches, parseGtplanCsv } from './core/csv.js';
 import { readWorkbookSheets, rowsToObjects } from './core/xlsxReader.js';
 import { MotiveResolver } from './core/motiveResolver.js';
@@ -22,7 +22,9 @@ function renderCloudStatus() {
   if (!cloudStatusEl) return;
   const s = cloudStatus;
   const map = {
-    local: ['is-local', 'Salvo neste navegador', 'Vínculos e configurações ficam só neste computador. Configure a nuvem em Configurações → Nuvem para compartilhar com a equipe.'],
+    local: HAS_DEFAULT_CLOUD
+      ? ['is-local', 'Entrar na nuvem', 'Você ainda não entrou: vínculos e configurações estão só neste navegador. Clique para entrar com seu e-mail e senha.']
+      : ['is-local', 'Salvo neste navegador', 'Vínculos e configurações ficam só neste computador. Configure a nuvem em Configurações → Nuvem para compartilhar com a equipe.'],
     cloud: ['is-cloud', 'Nuvem conectada', `Sincronizado com a equipe${s.user?.email ? ` · ${s.user.email}` : ''}`],
     error: ['is-error', 'Nuvem com erro', s.message || 'Falha ao falar com a nuvem. Os dados seguem salvos neste navegador.']
   };
@@ -392,7 +394,7 @@ const adminModal = new AdminModalController({
     }
   },
   cloud: {
-    getState: () => ({ cfg: loadCloudConfig(), user: repo.client?.user || null, status: cloudStatus }),
+    getState: () => ({ cfg: loadCloudConfig(), user: repo.client?.user || null, status: cloudStatus, builtIn: HAS_DEFAULT_CLOUD }),
     connect: async ({ url, anonKey, email, password }) => {
       const cfg = { url: String(url).trim().replace(/\/+$/, ''), anonKey: String(anonKey).trim() };
       const client = new SupabaseClient(cfg);

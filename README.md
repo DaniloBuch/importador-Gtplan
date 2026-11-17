@@ -37,7 +37,7 @@ e recalcula o lote. Também é possível digitar vários códigos separados por 
   Somem se os dados do navegador forem limpos; use *Atualizar bases e backup → Baixar backup*.
 - **Com nuvem (Supabase):** rode `supabase/schema.sql` no SQL Editor do projeto, desligue o cadastro aberto,
   crie os usuários da equipe e entre em *Configurações → Nuvem (equipe)* com a URL e a anon key.
-  Para não precisar digitar URL/chave em cada computador, preencha `DEFAULT_CLOUD` em
+  O projeto da CBS já vem configurado em `DEFAULT_CLOUD` (só é preciso o login). Para trocar de projeto, edite
   `src/storage/cloudRepository.js` e rode `node build.mjs`. A anon key é pública por design;
   quem protege os dados é o Row Level Security (só usuários logados).
   Os arquivos CSV e a planilha TOTVS nunca saem do navegador.

@@ -554,7 +554,7 @@ export class AdminModalController {
       this.bodyEl.innerHTML = '<div class="callout">Nuvem indisponível nesta versão.</div>';
       return;
     }
-    const { cfg, user, status } = this.cloud.getState();
+    const { cfg, user, status, builtIn } = this.cloud.getState();
     const nVinculos = (this.getConfig().customDePara || []).length;
 
     const statusBox =
@@ -578,14 +578,19 @@ export class AdminModalController {
         <div class="sub-line">Projeto: <span class="mono">${esc(cfg.url)}</span></div>`
           : `
         <form id="form-cloud" class="form-grid" autocomplete="on">
-          <div class="form-field" style="grid-column:span 2;">
+          ${
+            builtIn
+              ? `<input type="hidden" name="url" value="${esc(cfg.url)}" />
+          <input type="hidden" name="anonKey" value="${esc(cfg.anonKey)}" />`
+              : `<div class="form-field" style="grid-column:span 2;">
             <label>URL do projeto Supabase</label>
             <input name="url" required value="${esc(cfg.url)}" placeholder="https://xxxx.supabase.co" />
           </div>
           <div class="form-field" style="grid-column:span 2;">
             <label>Chave pública (anon key)</label>
-            <input name="anonKey" required value="${esc(cfg.anonKey)}" placeholder="eyJhbGciOi…" />
-          </div>
+            <input name="anonKey" required value="${esc(cfg.anonKey)}" placeholder="sb_publishable_…" />
+          </div>`
+          }
           <div class="form-field">
             <label>E-mail</label>
             <input name="email" type="email" required autocomplete="username" />
@@ -596,10 +601,19 @@ export class AdminModalController {
           </div>
           <button type="submit" class="btn btn-primary">Entrar</button>
         </form>
-        ${cfg.url ? '<button type="button" class="btn btn-xs btn-ghost" id="btn-cloud-forget">Esquecer este projeto</button>' : ''}`
+        ${
+          builtIn
+            ? '<div class="sub-line">Ainda não tem login? Peça para o administrador criar o seu no Supabase (Authentication → Users → Add user).</div>'
+            : cfg.url
+              ? '<button type="button" class="btn btn-xs btn-ghost" id="btn-cloud-forget">Esquecer este projeto</button>'
+              : ''
+        }`
       }
 
-      <details>
+      ${
+        builtIn
+          ? '<div class="sub-line">Os arquivos CSV e a planilha TOTVS nunca vão para a nuvem: continuam sendo lidos só no seu navegador.</div>'
+          : `<details>
         <summary><strong>Como configurar a nuvem (uma vez só)</strong></summary>
         <ol class="sub-line" style="line-height:1.6;">
           <li>Crie um projeto gratuito em supabase.com.</li>
@@ -609,7 +623,8 @@ export class AdminModalController {
           <li>Depois de entrar, clique em <em>Enviar dados deste navegador para a nuvem</em> para levar os vínculos que você já cadastrou.</li>
         </ol>
         <div class="sub-line">Os arquivos CSV e a planilha TOTVS nunca vão para a nuvem: continuam sendo lidos só no seu navegador.</div>
-      </details>
+      </details>`
+      }
     `;
 
     const run = async (btn, fn) => {

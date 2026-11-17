@@ -21,9 +21,13 @@ import { createDefaultConfig, ensureDeParaIds, normalizeFrases } from './reposit
  * Deixe vazio para configurar pela tela Configurações → Nuvem.
  */
 export const DEFAULT_CLOUD = {
-  url: '',
-  anonKey: ''
+  url: 'https://olgmdwmjefadyfhcugzp.supabase.co',
+  // Chave "publishable" (pública por design); a proteção dos dados é o RLS de supabase/schema.sql
+  anonKey: 'sb_publishable_kg9MFVn7lO4xGBXPWKZWIA_4wWtlK1g'
 };
+
+/** true quando o projeto já vem configurado no app (a tela mostra só e-mail e senha). */
+export const HAS_DEFAULT_CLOUD = Boolean(DEFAULT_CLOUD.url && DEFAULT_CLOUD.anonKey);
 
 const LS_CLOUD = 'gtplan_cloud_cfg';
 const LS_SESSION = 'gtplan_cloud_session';
@@ -119,8 +123,13 @@ export class SupabaseClient {
       body = text;
     }
     if (!res.ok) {
-      const msg = body?.error_description || body?.msg || body?.message || body?.error || `HTTP ${res.status}`;
-      const err = new Error(msg);
+      const raw = body?.error_description || body?.msg || body?.message || body?.error || `HTTP ${res.status}`;
+      const PT = {
+        'Invalid login credentials': 'E-mail ou senha incorretos.',
+        'Email not confirmed': 'E-mail ainda não confirmado. Confirme pelo link recebido ou peça ao administrador.',
+        'Invalid API key': 'Chave do Supabase inválida.'
+      };
+      const err = new Error(PT[raw] || raw);
       err.status = res.status;
       throw err;
     }
