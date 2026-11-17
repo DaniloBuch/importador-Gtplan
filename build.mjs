@@ -15,6 +15,7 @@ const ORDERED_MODULES = [
   { file: 'src/storage/repository.js', scope: false },
   { file: 'src/storage/cloudRepository.js', scope: true, exports: ['HybridRepository', 'SupabaseClient', 'loadCloudConfig', 'saveCloudConfig'] },
   { file: 'src/ui/icons.js', scope: false },
+  { file: 'src/ui/columnResize.js', scope: true, exports: ['enableColumnResize'] },
   { file: 'src/ui/triageTable.js', scope: true, exports: ['TriageTableController'] },
   { file: 'src/ui/adminModal.js', scope: true, exports: ['AdminModalController'] },
   { file: 'src/main.js', scope: false }

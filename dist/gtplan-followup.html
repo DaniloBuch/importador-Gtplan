@@ -2287,6 +2287,134 @@ table.sheet td.cbs-cell {
 .cloud-status.is-error::before { background: #ff6b6b; }
 .cloud-status:hover { background: rgba(255, 255, 255, 0.12); }
 
+/* Não deixa o navegador "corrigir" a rolagem quando o layout muda (fechava o popover) */
+.table-scroll {
+  overflow-anchor: none;
+}
+
+/* Observação: texto + faixa de botões à direita (altura da linha não muda no hover) */
+table.sheet .obs-wrap {
+  display: flex;
+  align-items: stretch;
+  min-height: 34px;
+}
+
+table.sheet .obs-wrap textarea.cell-input {
+  flex: 1;
+  min-width: 0;
+}
+
+table.sheet .obs-side {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 5px 4px 0 2px;
+  opacity: 0.35;
+  transition: opacity 0.12s;
+}
+
+table.sheet tr:hover .obs-side,
+table.sheet td.obs-cell:focus-within .obs-side,
+table.sheet .obs-side:has(.is-suggest) {
+  opacity: 1;
+}
+
+.obs-side-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-light, #6b6b6b);
+  cursor: pointer;
+}
+
+.obs-side-btn .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.obs-side-btn:hover,
+.obs-side-btn:focus-visible {
+  background: #eef2fb;
+  border-color: #c9d6f3;
+  color: var(--cbs-azul, #1f6feb);
+  outline: none;
+}
+
+.obs-side-btn.is-suggest {
+  color: var(--cbs-sucesso, #1a7f4b);
+  background: var(--cbs-sucesso-bg, #e6f4ea);
+  border-color: currentColor;
+}
+
+/* CBS: código em cima, botão de vincular embaixo (cabe sempre na célula) */
+table.sheet td.cbs-cell {
+  white-space: normal;
+}
+
+table.sheet .cbs-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+table.sheet .cbs-stack .btn-link-cbs {
+  margin-left: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Alça para mudar a largura da coluna */
+table.sheet thead th {
+  position: sticky;
+}
+
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+.col-resizer::after {
+  content: "";
+  position: absolute;
+  top: 20%;
+  bottom: 20%;
+  right: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+}
+
+table.sheet thead th:hover .col-resizer::after,
+table.sheet.is-resizing .col-resizer::after {
+  background: #9db4e6;
+}
+
+table.sheet.is-resizing,
+table.sheet.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+table.sheet thead th {
+  user-select: none;
+}
+
 </style>
 </head>
 <body>
@@ -2379,6 +2507,7 @@ table.sheet td.cbs-cell {
         <button type="button" class="btn btn-sm btn-ghost" id="btn-clear-filters" hidden>Limpar filtros</button>
         <div class="toolbar-right">
           <span id="toolbar-stats">0 linhas</span>
+          <button type="button" class="btn btn-sm btn-ghost" id="btn-reset-cols" hidden title="Volta as colunas para a largura original">Colunas padrão</button>
           <button type="button" class="btn btn-sm" id="btn-reprocess-force" disabled title="Roda o motor de regras de novo em todas as linhas"><svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Recalcular</button>
         </div>
       </div>
@@ -4803,10 +4932,14 @@ const LUCIDE = {
   'file-text': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
   'grid-2x2': '<path d="M12 3v18"/><path d="M3 12h18"/><rect x="3" y="3" width="18" height="18" rx="2"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'list-plus': '<path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/>',
+  calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  wand: '<path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/>',
   'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
-};function icon(name, extraClass = '') {
+};
+function icon(name, extraClass = '') {
   const body = LUCIDE[name];
   if (!body) {
     console.warn(`Ícone desconhecido: ${name}`);
@@ -4815,6 +4948,152 @@ const LUCIDE = {
   return `<svg class="icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 }
 
+
+// === src/ui/columnResize.js ===
+const { enableColumnResize } = (() => {
+/**
+ * Colunas com largura ajustável, como numa planilha.
+ * - Arraste a borda direita do cabeçalho para alargar/estreitar.
+ * - Duplo clique na borda ajusta a coluna ao conteúdo visível.
+ * - As larguras ficam salvas neste navegador (localStorage).
+ * A última coluna (Observação) fica com o espaço que sobrar.
+ */
+
+const DEFAULT_KEY = 'gtplan_col_widths_v1';
+const LAST_COL_MIN = 240;
+
+function readSaved(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || 'null');
+    return Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSaved(key, val) {
+  try {
+    if (val) localStorage.setItem(key, JSON.stringify(val));
+    else localStorage.removeItem(key);
+  } catch {
+    // storage bloqueado: só não lembra
+  }
+}
+
+/**
+ * @param {HTMLTableElement} table
+ * @param {{ storageKey?: string, minWidth?: number, skip?: number[], onChange?: (customized:boolean)=>void }} [opts]
+ */
+function enableColumnResize(table, opts = {}) {
+  const key = opts.storageKey || DEFAULT_KEY;
+  const minWidth = opts.minWidth || 44;
+  const skip = new Set(opts.skip || [0]);
+  const onChange = opts.onChange || (() => {});
+  const cols = [...table.querySelectorAll('colgroup col')];
+  const ths = [...table.querySelectorAll('thead th')];
+  const lastIdx = cols.length - 1;
+  const defaults = cols.map((c) => parseFloat(c.style.width) || 0);
+
+  const widths = () => cols.map((c, i) => (i === lastIdx ? 0 : parseFloat(c.style.width) || defaults[i]));
+
+  const applyTableMin = () => {
+    const sum = widths().reduce((a, b) => a + b, 0);
+    table.style.minWidth = `${Math.round(sum + LAST_COL_MIN)}px`;
+  };
+
+  const setWidth = (i, w) => {
+    cols[i].style.width = `${Math.round(Math.max(minWidth, Math.min(w, 900)))}px`;
+  };
+
+  const isCustomized = () =>
+    widths().some((w, i) => i !== lastIdx && !skip.has(i) && Math.round(w) !== Math.round(defaults[i]));
+
+  const save = () => {
+    writeSaved(key, isCustomized() ? widths() : null);
+    onChange(isCustomized());
+  };
+
+  // Restaura larguras salvas (se o layout de colunas não mudou)
+  const saved = readSaved(key);
+  if (saved && saved.length === cols.length) {
+    saved.forEach((w, i) => {
+      if (i !== lastIdx && !skip.has(i) && w > 0) setWidth(i, w);
+    });
+  }
+  applyTableMin();
+  onChange(isCustomized());
+
+  /** Largura que cabe o conteúdo visível da coluna (para o duplo clique). */
+  const fitWidth = (i) => {
+    let max = 0;
+    const measure = (cell) => {
+      if (!cell) return;
+      // Mede o conteúdo sem corte: elementos truncados informam a largura total em scrollWidth
+      let need = cell.scrollWidth;
+      cell.querySelectorAll('.truncate, .motive-picker-label, .cell-input').forEach((el) => {
+        const extra = el.scrollWidth - el.clientWidth;
+        if (extra > 0) need = Math.max(need, cell.clientWidth + extra);
+      });
+      max = Math.max(max, need);
+    };
+    measure(ths[i]);
+    table.querySelectorAll('tbody tr').forEach((tr) => measure(tr.children[i]));
+    return max + 12;
+  };
+
+  ths.forEach((th, i) => {
+    if (skip.has(i) || i === lastIdx) return;
+    const handle = document.createElement('span');
+    handle.className = 'col-resizer';
+    handle.title = 'Arraste para mudar a largura · duplo clique ajusta ao conteúdo';
+    handle.setAttribute('aria-hidden', 'true');
+    th.appendChild(handle);
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startW = th.getBoundingClientRect().width;
+      handle.setPointerCapture(e.pointerId);
+      table.classList.add('is-resizing');
+      const move = (ev) => {
+        setWidth(i, startW + (ev.clientX - startX));
+        applyTableMin();
+      };
+      const up = () => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+        handle.removeEventListener('pointercancel', up);
+        table.classList.remove('is-resizing');
+        save();
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+      handle.addEventListener('pointercancel', up);
+    });
+
+    handle.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setWidth(i, fitWidth(i));
+      applyTableMin();
+      save();
+    });
+  });
+
+  return {
+    reset() {
+      cols.forEach((c, i) => {
+        if (i !== lastIdx && defaults[i]) c.style.width = `${defaults[i]}px`;
+      });
+      applyTableMin();
+      save();
+    }
+  };
+}
+
+return { enableColumnResize };
+})();
 
 // === src/ui/triageTable.js ===
 const { TriageTableController } = (() => {
@@ -4888,10 +5167,24 @@ class TriageTableController {
       }
     });
 
-    // Popover acompanha a rolagem? Mais simples e previsível: fecha ao rolar a tabela.
-    if (this.scrollEl) {
-      this.scrollEl.addEventListener('scroll', () => this.closePopover(), { passive: true });
-    }
+    // Ao rolar (ou quando o layout se mexe e o navegador ajusta a rolagem sozinho), o popover
+    // acompanha o botão que o abriu. Só fecha se o botão sair da área visível da tabela.
+    const follow = () => {
+      const pop = this.activePopover;
+      if (!pop) return;
+      const anchor = pop.dataset.anchorId
+        ? this.tbodyEl.querySelector(`[data-anchor-id="${CSS.escape(pop.dataset.anchorId)}"]`)
+        : null;
+      if (!anchor || !anchor.isConnected) return this.closePopover();
+      const a = anchor.getBoundingClientRect();
+      const box = (this.scrollEl || document.documentElement).getBoundingClientRect();
+      if (a.bottom < box.top || a.top > box.bottom || a.right < box.left || a.left > box.right) {
+        return this.closePopover();
+      }
+      this._positionPopover(pop, anchor);
+    };
+    if (this.scrollEl) this.scrollEl.addEventListener('scroll', follow, { passive: true });
+    window.addEventListener('resize', follow, { passive: true });
 
     // Navegação de planilha: Enter/↓ desce na mesma coluna, Shift+Enter/↑ sobe.
     // Na Observação, Enter também desce (o CSV não aceita quebra de linha).
@@ -5168,14 +5461,14 @@ class TriageTableController {
       slot.innerHTML = '';
       return;
     }
+    // Botão compacto ao lado da Observação (não muda a altura da linha)
     slot.innerHTML = `
-      <span class="suggest-pill" title="${esc(`${res.codigo} — ${res.desc}`)}">
-        Motivo sugerido: <strong>${esc(res.codigo)}</strong> ${esc(res.desc.slice(0, 32))}${res.desc.length > 32 ? '…' : ''}
-        <button type="button" class="btn btn-xs btn-primary"
-          data-action="apply-suggested-motive"
-          data-codigo="${esc(res.codigo)}"
-          data-desc="${esc(res.desc)}">Aplicar</button>
-      </span>
+      <button type="button" class="obs-side-btn is-suggest"
+        data-action="apply-suggested-motive"
+        data-codigo="${esc(res.codigo)}"
+        data-desc="${esc(res.desc)}"
+        title="${esc(`Aplicar o motivo que combina com este texto: ${res.codigo} — ${res.desc}`)}"
+        aria-label="Aplicar motivo sugerido">${icon('wand')}</button>
     `;
   }
 
@@ -5510,9 +5803,9 @@ class TriageTableController {
           cbsCell = `<button type="button" class="btn btn-xs btn-link-cbs is-missing" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}" title="Item sem De-Para: escolher o código CBS">${icon('plus')} Vincular</button>`;
         } else if (!meta.hasTotvs) {
           cbsCell = `
-            <span class="mono" title="Procurado no TOTVS como: ${esc((meta.candidateCbs || []).join(', '))}">${esc(meta.codCBS)}</span>
+            <div class="cbs-stack"><span class="mono" title="Procurado no TOTVS como: ${esc((meta.candidateCbs || []).join(', '))}">${esc(meta.codCBS)}</span>
             <button type="button" class="btn btn-xs btn-link-cbs ${likely ? 'has-hint' : ''}" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}"
-              title="${likely ? `O TOTVS faturou esta OC com ${esc(likely.codCBS)} — ${esc(likely.desc)}` : 'Não achado no TOTVS: vincular outro código CBS'}">${icon('plus')}${likely ? ` ${esc(likely.codCBS)}?` : ' CBS'}</button>`;
+              title="${likely ? `O TOTVS faturou esta OC com ${esc(likely.codCBS)} — ${esc(likely.desc)}` : 'Não achado no TOTVS: vincular outro código CBS'}">${icon('plus')}${likely ? ` ${esc(likely.codCBS)}?` : ' CBS'}</button></div>`;
         } else {
           cbsCell = `<span class="mono" title="Pedido TOTVS ${esc(meta.totvsPedido)}">${esc(meta.codCBS)}</span>`;
         }
@@ -5546,11 +5839,13 @@ class TriageTableController {
               </button>
             </td>
             <td class="edit obs-cell">
-              <textarea class="cell-input" rows="1" data-field="Observação" placeholder="dd/mm: texto…" aria-label="Observação, linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
-              <div class="obs-actions">
-                <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}" title="Inserir frase padrão">Frases ${icon('chevron-down')}</button>
-                <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">${todayShort}:</button>
-                <span data-obs-suggestion></span>
+              <div class="obs-wrap">
+                <textarea class="cell-input" rows="1" data-field="Observação" placeholder="dd/mm: texto…" aria-label="Observação, linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
+                <div class="obs-side">
+                  <button type="button" class="obs-side-btn" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}" title="Inserir frase padrão" aria-label="Inserir frase padrão">${icon('list-plus')}</button>
+                  <button type="button" class="obs-side-btn" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início" aria-label="Prefixo de hoje">${icon('calendar')}</button>
+                  <span data-obs-suggestion></span>
+                </div>
               </div>
             </td>
           </tr>
@@ -6613,6 +6908,7 @@ return { AdminModalController };
 
 
 
+
 const cloudStatusEl = document.getElementById('cloud-status');
 let cloudStatus = { mode: 'local' };
 
@@ -7418,6 +7714,15 @@ async function boot() {
 boot();
 
 document.getElementById('cloud-status')?.addEventListener('click', () => adminModal.open('cloud'));
+
+// Colunas com largura ajustável (arrastar a borda do cabeçalho; duplo clique ajusta ao conteúdo)
+const btnResetCols = document.getElementById('btn-reset-cols');
+const colResizer = enableColumnResize(document.querySelector('table.triage-table.sheet'), {
+  onChange: (customized) => {
+    if (btnResetCols) btnResetCols.hidden = !customized;
+  }
+});
+btnResetCols?.addEventListener('click', () => colResizer.reset());
 
 </script>
 </body>
