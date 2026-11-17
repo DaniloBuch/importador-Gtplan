@@ -2018,6 +2018,275 @@ textarea.cell-input::placeholder {
   height: 14px;
 }
 
+/* =========================================================================
+   Grade estilo planilha (tabela de edição das linhas)
+   Linhas de grade finas, cabeçalho e numeração cinza, células sem borda
+   que ganham um contorno de "célula ativa" ao focar.
+   ========================================================================= */
+.table-card table.triage-table.sheet {
+  min-width: 1480px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+table.sheet thead th {
+  background: #f3f3f3;
+  color: #3c3c3c;
+  font-size: 11.5px;
+  font-weight: var(--fw-semibold, 600);
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 6px 8px;
+  border: 1px solid #d4d4d4;
+  border-top: 0;
+}
+
+table.sheet thead th.edit-col {
+  background: #eaf3ec;
+}
+
+table.sheet .col-letter {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid #c9c9c9;
+  color: #6b6b6b;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+table.sheet tbody td {
+  padding: 4px 8px;
+  border: 1px solid #e1e1e1;
+  vertical-align: middle;
+  background: #fff;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+table.sheet tbody tr:hover td {
+  background: #f7f9fc;
+}
+
+table.sheet th.num,
+table.sheet td.num {
+  text-align: right;
+}
+
+/* Coluna de numeração (como no Excel), com a cor de status da linha */
+table.sheet .gutter {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #f3f3f3 !important;
+  color: #6b6b6b;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 2px !important;
+  border-right: 1px solid #c9c9c9;
+}
+
+table.sheet thead th.gutter {
+  z-index: 12;
+}
+
+#triage-tbody tr > td.gutter {
+  box-shadow: inset 3px 0 0 var(--row-accent, transparent);
+}
+
+#triage-tbody tr.row-edited > td.gutter {
+  color: var(--cbs-roxo, #4b2a85);
+  font-weight: 700;
+}
+
+/* Desliga a barra lateral antiga (agora está na numeração) */
+table.sheet #triage-tbody tr > td:first-child,
+#triage-tbody tr > td[data-status-cell] {
+  padding-left: 8px;
+}
+
+table.sheet .cell-sub {
+  font-size: 10.5px;
+  color: var(--text-light, #6b6b6b);
+  margin-top: 1px;
+}
+
+table.sheet .chip-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+table.sheet .chip {
+  font-size: 10.5px;
+  padding: 1px 6px;
+}
+
+/* Células editáveis: parecem texto de planilha até receberem foco */
+table.sheet td.edit {
+  padding: 0;
+  background: #fff;
+}
+
+table.sheet td.edit .cell-input,
+table.sheet td.edit .motive-picker-btn {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+table.sheet td.edit .cell-input:hover,
+table.sheet td.edit .motive-picker-btn:hover {
+  background: #f5f8ff;
+}
+
+table.sheet td.edit .cell-input:focus,
+table.sheet td.edit .motive-picker-btn:focus-visible {
+  outline: 2px solid var(--cbs-azul, #1f6feb);
+  outline-offset: -2px;
+  background: #fff;
+  box-shadow: none;
+}
+
+table.sheet td.edit .cell-input.is-invalid {
+  outline: 2px solid var(--cbs-erro, #c62828);
+  outline-offset: -2px;
+  background: #fff5f5;
+}
+
+table.sheet td.edit .motive-picker-btn.missing {
+  background: var(--cbs-amarelo-050, #fff8e1);
+  color: var(--cbs-amarelo-700, #8a5a00);
+}
+
+table.sheet td.obs-cell textarea.cell-input {
+  resize: none;
+  min-height: 34px;
+  overflow: hidden;
+}
+
+/* Ações da observação só aparecem na linha em foco/hover (planilha limpa) */
+table.sheet td.obs-cell .obs-actions {
+  display: none;
+  gap: 4px;
+  padding: 0 6px 5px;
+}
+
+table.sheet tr:hover td.obs-cell .obs-actions,
+table.sheet td.obs-cell:focus-within .obs-actions {
+  display: flex;
+}
+
+table.sheet td.cbs-cell {
+  white-space: nowrap;
+}
+
+.btn-link-cbs {
+  padding: 1px 6px;
+  margin-left: 4px;
+}
+
+.btn-link-cbs.is-missing {
+  margin-left: 0;
+  color: var(--cbs-erro, #c62828);
+  border-color: currentColor;
+}
+
+.btn-link-cbs.has-hint {
+  background: var(--cbs-sucesso-bg, #e6f4ea);
+  color: var(--cbs-sucesso, #1a7f4b);
+  border-color: currentColor;
+}
+
+#triage-tbody tr.st-unchanged td:not(.gutter) {
+  color: var(--text-muted, #8a8a8a);
+}
+
+/* Popover "Vincular CBS" */
+.link-popover {
+  width: 380px;
+}
+
+.link-popover .link-sec {
+  font-size: 11px;
+  color: var(--text-light, #6b6b6b);
+  padding: 6px 10px 2px;
+}
+
+.link-popover .link-sug {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border-soft, #eee);
+}
+
+.link-popover .link-sug.is-likely {
+  background: var(--cbs-sucesso-bg, #e6f4ea);
+}
+
+.link-popover details.link-others summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--text-light, #6b6b6b);
+}
+
+.link-popover .link-form {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.link-popover .link-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+/* Selo "onde os dados estão salvos" no cabeçalho */
+.cloud-status {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px 10px 3px 22px;
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+}
+
+.cloud-status::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: #c9c9c9;
+}
+
+.cloud-status.is-cloud::before { background: #3ddc84; }
+.cloud-status.is-error::before { background: #ff6b6b; }
+.cloud-status:hover { background: rgba(255, 255, 255, 0.12); }
+
 </style>
 </head>
 <body>
@@ -2032,6 +2301,7 @@ textarea.cell-input::placeholder {
     </div>
 
     <nav class="header-tools" aria-label="Ferramentas">
+      <button type="button" class="cloud-status is-local" id="cloud-status">Salvo neste navegador</button>
       <button type="button" class="btn btn-header" id="btn-open-review" title="Escolher qual código de motivo cada cliente usa em cada situação">
         Revisar motivos
         <span class="badge-count" id="btn-review-count" hidden>0</span>
@@ -2114,23 +2384,37 @@ textarea.cell-input::placeholder {
       </div>
 
       <div class="table-scroll" id="table-scroll">
-        <table class="triage-table">
+        <table class="triage-table sheet">
           <colgroup>
-            <col style="width:120px" />
-            <col style="width:200px" />
-            <col style="width:220px" />
-            <col style="width:180px" />
-            <col style="width:220px" />
+            <col style="width:40px" />
+            <col style="width:118px" />
+            <col style="width:100px" />
+            <col style="width:136px" />
+            <col style="width:186px" />
+            <col style="width:122px" />
+            <col style="width:52px" />
+            <col style="width:60px" />
+            <col style="width:96px" />
+            <col style="width:96px" />
+            <col style="width:92px" />
+            <col style="width:190px" />
             <col />
           </colgroup>
           <thead>
             <tr>
+              <th class="gutter" aria-label="Linha"></th>
               <th>Status</th>
-              <th>Pedido</th>
-              <th>Item</th>
-              <th>Entrega / NF</th>
-              <th>Motivo</th>
-              <th>Observação</th>
+              <th>Núm. OC</th>
+              <th>Cliente / Estab.</th>
+              <th>Item GTplan</th>
+              <th title="Código do produto no TOTVS">CBS</th>
+              <th class="num" title="Qtd. Pendente">Qtd.</th>
+              <th class="num" title="Val. Unit. no GTplan">Val.</th>
+              <th class="edit-col" title="Coluna Q do CSV">Nova Prev. <span class="col-letter">Q</span></th>
+              <th class="edit-col" title="Coluna R do CSV">Núm. NF <span class="col-letter">R</span></th>
+              <th class="edit-col" title="Coluna S do CSV">Dt. NF <span class="col-letter">S</span></th>
+              <th class="edit-col" title="Coluna T do CSV">Motivo <span class="col-letter">T</span></th>
+              <th class="edit-col" title="Coluna U do CSV">Observação <span class="col-letter">U</span></th>
             </tr>
           </thead>
           <tbody id="triage-tbody"></tbody>
@@ -2153,6 +2437,7 @@ textarea.cell-input::placeholder {
         <button type="button" class="tab-btn" data-tab="depara" role="tab">Vínculos de itens e frases</button>
         <button type="button" class="tab-btn" data-tab="bases" role="tab">Atualizar bases e backup</button>
         <button type="button" class="tab-btn" data-tab="explorer" role="tab">Consultar bases</button>
+        <button type="button" class="tab-btn" data-tab="cloud" role="tab">Nuvem (equipe)</button>
       </div>
       <div class="modal-body" id="admin-body"></div>
     </div>
@@ -3242,6 +3527,9 @@ const KEYWORD_RULES = {
  * Motor de Regras de Negócio GTplan (Client-Side Pure Engine).
  * Refatora integralmente a lógica dos Botões 1-4 para processamento multi-cliente em memória.
  */
+
+
+
 function parsePtBrNumber(val) {
   if (typeof val === 'number') return Number.isFinite(val) ? val : NaN;
   const s = String(val ?? '').trim();
@@ -3289,13 +3577,15 @@ function extractNumericTokens(text) {
 
 /**
  * Extrai conteúdo da observação ignorando prefixo de data "dd/mm: " (ou primeiros 7 chars).
- */function stripDatePrefix(obs) {
+ */
+function stripDatePrefix(obs) {
   const s = String(obs ?? '').trim();
   if (!s) return '';
   const m = s.match(/^\d{2}\/\d{2}\s*:\s*(.*)$/);
   if (m) return m[1].trim();
   return s;
-}function indexTotvsWorkbook(sheets) {
+}
+function indexTotvsWorkbook(sheets) {
   const dadosSimp = sheets['Dados Simplificados'] || [];
   const ajusteRem = sheets['AjusteRemessa'] || [];
   const semContrato = sheets['SemContrato'] || [];
@@ -3304,6 +3594,7 @@ function extractNumericTokens(text) {
 
   const byProdOc = new Map();
   const byProdToken = new Map();
+  const byOc = new Map();
 
   for (const row of dadosSimp) {
     const pedido = String(row['Pedido'] ?? '').trim();
@@ -3335,6 +3626,9 @@ function extractNumericTokens(text) {
       const k = `${produto}|${oc}`;
       if (!byProdOc.has(k)) byProdOc.set(k, []);
       byProdOc.get(k).push(parsedRow);
+      // Índice por OC: usado para sugerir qual CBS o TOTVS faturou quando a linha não cruza
+      if (!byOc.has(oc)) byOc.set(oc, []);
+      byOc.get(oc).push(parsedRow);
     }
 
     // Indexa também tokens numéricos da Msg. Nota caso cliente (ex: DASA) não use prefixo 450/400 na coluna OC
@@ -3394,6 +3688,7 @@ function extractNumericTokens(text) {
   return {
     byProdOc,
     byProdToken,
+    byOc,
     ajusteRemessaByNf,
     semContratoByCbs,
     lojasByClienteLoja,
@@ -3404,7 +3699,8 @@ function extractNumericTokens(text) {
       semContrato: semContrato.length
     }
   };
-}function buildDeParaIndex(todasBases = [], customDePara = []) {
+}
+function buildDeParaIndex(todasBases = [], customDePara = []) {
   const byClientItem = new Map(); // codCliente|codItem -> item
   const byConcat = new Map();     // codItem+descItem -> item[]
   const byCodItem = new Map();    // codItem -> item[]
@@ -3428,7 +3724,12 @@ function extractNumericTokens(text) {
     if (!byCbs.has(codCBS)) byCbs.set(codCBS, item);
 
     if (item.codCliente && item.codItem) {
-      byClientItem.set(`${item.codCliente}|${item.codItem}`, item);
+      const ck = `${item.codCliente}|${item.codItem}`;
+      if (!byClientItem.has(ck)) byClientItem.set(ck, []);
+      // Um item GTplan pode ter vários CBS (ex.: TOTVS fatura com código substituto)
+      if (!byClientItem.get(ck).some((x) => x.codCBS === codCBS)) byClientItem.get(ck).push(item);
+      // Vínculo exclusivo de um cliente não pode valer para os outros
+      return;
     }
 
     if (item.codItem && item.descItem) {
@@ -3451,7 +3752,8 @@ function extractNumericTokens(text) {
   for (const c of customDePara) registerBase(c);
 
   return { byClientItem, byConcat, byCodItem, byDesc, byCbs, validCbsSet };
-}function buildHospitalIndex(hospitais = [], customRules = {}) {
+}
+function buildHospitalIndex(hospitais = [], customRules = {}) {
   const byClientLoja = new Map();
   const byEstab = new Map();
 
@@ -3537,6 +3839,18 @@ function resolveSlaAndRule({ codCliente, estab, totvsRow, hospitalIdx, leadtimeU
   return { sla: Math.max(1, sla + extraSla), uf, shortForaLtObs };
 }
 
+/** Semelhança simples entre descrições: fração de palavras (3+ letras ou números) em comum. 0..1 */
+function descSimilarity(a, b) {
+  const words = (s) =>
+    new Set(normalizeText(s).split(' ').filter((w) => w.length >= 3 || /^\d+$/.test(w)));
+  const wa = words(a);
+  const wb = words(b);
+  if (!wa.size || !wb.size) return 0;
+  let common = 0;
+  for (const w of wa) if (wb.has(w)) common++;
+  return common / Math.min(wa.size, wb.size);
+}
+
 function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
   const codCliente = raw['Cód. Cliente'];
   const codItem = raw['Cód. Item'];
@@ -3545,13 +3859,13 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
   const codItemForn = pad6(raw['Cód. Item Fornecedor']);
 
   // Ordem de candidatos De-Para
-  const clientScoped = codItem ? deParaIdx.byClientItem.get(`${codCliente}|${codItem}`) : null;
+  const clientScoped = (codItem && deParaIdx.byClientItem.get(`${codCliente}|${codItem}`)) || [];
   const concatMatches = codItem && normDesc ? (deParaIdx.byConcat.get(`${codItem}|${normDesc}`) || []) : [];
   const codItemMatches = codItem ? (deParaIdx.byCodItem.get(codItem) || []) : [];
   const descMatches = normDesc ? (deParaIdx.byDesc.get(normDesc) || []) : [];
 
   let primaryItem =
-    clientScoped ||
+    clientScoped[0] ||
     concatMatches[0] ||
     codItemMatches[0] ||
     descMatches[0] ||
@@ -3568,7 +3882,7 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
     }
   };
 
-  if (clientScoped) pushCbs(clientScoped.codCBS);
+  for (const m of clientScoped) pushCbs(m.codCBS);
   for (const m of concatMatches) pushCbs(m.codCBS);
   for (const m of codItemMatches) pushCbs(m.codCBS);
   for (const m of descMatches) pushCbs(m.codCBS);
@@ -3614,8 +3928,36 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
     }
   }
 
+  // Se o TOTVS cruzou por um CBS alternativo, ele passa a ser o item principal (caixaria/mult. corretos)
+  if (totvsRow?.produto) {
+    const all = [...clientScoped, ...concatMatches, ...codItemMatches, ...descMatches];
+    const matchedItem = all.find((m) => m.codCBS === totvsRow.produto);
+    if (matchedItem) primaryItem = matchedItem;
+  }
+
   if (!primaryItem && totvsRow?.produto && deParaIdx.validCbsSet.has(totvsRow.produto)) {
     primaryItem = deParaIdx.byCbs.get(totvsRow.produto) || null;
+  }
+
+  // Sem cruzamento: lista o que o TOTVS tem nas mesmas OCs (o usuário pode vincular com 1 clique)
+  const ocSuggestions = [];
+  if (!totvsRow && totvsIdx?.byOc) {
+    const seen = new Set();
+    for (const oc of ocCandidates) {
+      for (const t of totvsIdx.byOc.get(oc) || []) {
+        if (seen.has(t.produto) || seenCbs.has(t.produto)) continue;
+        seen.add(t.produto);
+        ocSuggestions.push({
+          oc,
+          codCBS: t.produto,
+          desc: t.descrProdut,
+          pedido: t.pedido,
+          nf: t.notaFiscal,
+          score: descSimilarity(descItem, t.descrProdut)
+        });
+      }
+    }
+    ocSuggestions.sort((a, b) => b.score - a.score);
   }
 
   return {
@@ -3623,7 +3965,9 @@ function resolveDeParaAndTotvs({ raw, deParaIdx, totvsIdx }) {
     codCBS: primaryItem?.codCBS || (totvsRow?.produto && deParaIdx.validCbsSet.has(totvsRow.produto) ? totvsRow.produto : ''),
     multiplicador: primaryItem?.mult || totvsRow?.qntdEmbalagem || 1,
     totvsRow,
-    matchedOc
+    matchedOc,
+    candidateCbs,
+    ocSuggestions
   };
 }
 
@@ -3640,7 +3984,8 @@ function formatRupturaObs(rupturaRaw, today) {
 
 /**
  * Processa todo o lote CSV na memória aplicando o motor de regras completo.
- */function processFollowUpBatch(csvRows, context) {
+ */
+function processFollowUpBatch(csvRows, context) {
   const {
     totvsIdx,
     deParaIdx,
@@ -3659,7 +4004,7 @@ function formatRupturaObs(rupturaRaw, today) {
     ...(totvsIdx?.leadtimeUF || {})
   };
 
-  return csvRows.map(({ rowIndex, raw }) => {
+  const processed = csvRows.map(({ rowIndex, raw }) => {
     const codCliente = raw['Cód. Cliente'];
     const estab = raw['Estab.'];
     const qtdPendente = parsePtBrNumber(raw['Qtd. Pendente']) || 0;
@@ -3670,7 +4015,7 @@ function formatRupturaObs(rupturaRaw, today) {
     const obsAntiga = raw['Observação'] || '';
     const motivoAntigoRaw = raw['Motivo'] || '';
 
-    const { primaryItem, codCBS, multiplicador, totvsRow } = resolveDeParaAndTotvs({
+    const { primaryItem, codCBS, multiplicador, totvsRow, matchedOc, candidateCbs, ocSuggestions } = resolveDeParaAndTotvs({
       raw,
       deParaIdx,
       totvsIdx
@@ -3904,6 +4249,9 @@ function formatRupturaObs(rupturaRaw, today) {
         hasDePara,
         hasTotvs,
         totvsPedido: totvsRow?.pedido || '',
+        totvsKey: totvsRow ? `${totvsRow.produto}|${matchedOc}` : '',
+        candidateCbs,
+        ocSuggestions,
         slug,
         resolvedMotiveDesc: resolvedMotive.desc || '',
         motiveConfidence, // 'confirmed' | 'exact' | 'review' | 'suggested' | 'missing' | 'manual'
@@ -3917,6 +4265,15 @@ function formatRupturaObs(rupturaRaw, today) {
       }
     };
   });
+
+  // Remove das sugestões os itens TOTVS que já cruzaram com outra linha do CSV
+  const claimed = new Set(processed.map((r) => r.meta.totvsKey).filter(Boolean));
+  for (const r of processed) {
+    if (r.meta.ocSuggestions?.length) {
+      r.meta.ocSuggestions = r.meta.ocSuggestions.filter((s) => !claimed.has(`${s.codCBS}|${s.oc}`));
+    }
+  }
+  return processed;
 }
 
 
@@ -3935,6 +4292,19 @@ const DB_NAME = 'gtplan_followup_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'kv_store';
 const STATE_KEY = 'app_config_v1';
+
+/** Identificador único para registros (vínculos De-Para etc.). */function newId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  // Fallback (contexto sem randomUUID): UUID v4 com Math.random
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/** Garante que todo vínculo De-Para tenha id (necessário para sincronizar com a nuvem). */function ensureDeParaIds(list) {
+  return (list || []).map((d) => (d.id ? d : { ...d, id: newId() }));
+}
 
 /** Bases de referência embutidas no app. Só ficam salvas no navegador se o usuário importar versões novas. */
 const BASE_KEYS = ['todasBases', 'hospitais', 'motivos', 'motiveSlugMap'];
@@ -4031,6 +4401,7 @@ const BASE_KEYS = ['todasBases', 'hospitais', 'motivos', 'motiveSlugMap'];
           for (const k of BASE_KEYS) merged[k] = this.seedData[k] || [];
         }
         merged.frases = normalizeFrases(merged.frases);
+        merged.customDePara = ensureDeParaIds(merged.customDePara);
         return merged;
       }
       const initial = createDefaultConfig(this.seedData);
@@ -4064,6 +4435,357 @@ const BASE_KEYS = ['todasBases', 'hospitais', 'motivos', 'motiveSlugMap'];
   }
 }
 
+
+// === src/storage/cloudRepository.js ===
+const { HybridRepository, SupabaseClient, loadCloudConfig, saveCloudConfig } = (() => {
+/**
+ * Persistência na nuvem (Supabase) sem SDK: usa só fetch na API REST (PostgREST + GoTrue).
+ *
+ * Como funciona
+ * - O navegador continua guardando tudo no IndexedDB (cache local / modo offline).
+ * - Com a nuvem configurada e o usuário logado, os vínculos De-Para e as configurações
+ *   (motivos revisados, frases, feriados, prazos) passam a vir da nuvem e a ser gravados nela,
+ *   então toda a equipe enxerga a mesma coisa.
+ * - Vínculos De-Para são gravados linha a linha (tabela depara_vinculos): duas pessoas podem
+ *   cadastrar ao mesmo tempo sem uma apagar o trabalho da outra.
+ * - Configurações ficam em app_settings (uma linha por chave, valor jsonb).
+ *
+ * Segurança: a "anon key" do Supabase é pública por design; quem protege os dados é o
+ * Row Level Security (ver supabase/schema.sql), que só libera usuários autenticados.
+ */
+
+/**
+ * Para a equipe não precisar digitar URL/chave: preencha aqui e gere o build (node build.mjs).
+ * Deixe vazio para configurar pela tela Configurações → Nuvem.
+ */
+const DEFAULT_CLOUD = {
+  url: '',
+  anonKey: ''
+};
+
+const LS_CLOUD = 'gtplan_cloud_cfg';
+const LS_SESSION = 'gtplan_cloud_session';
+
+/** Chaves de configuração sincronizadas (além dos vínculos De-Para). */
+const SYNCED_SETTING_KEYS = ['motiveOverrides', 'frases', 'holidays', 'clientRules'];
+
+function lsGet(key) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+function lsSet(key, val) {
+  try {
+    if (val == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(val));
+  } catch {
+    // storage bloqueado: segue só em memória
+  }
+}
+function loadCloudConfig() {
+  const saved = lsGet(LS_CLOUD) || {};
+  return {
+    url: String(saved.url || DEFAULT_CLOUD.url || '').trim().replace(/\/+$/, ''),
+    anonKey: String(saved.anonKey || DEFAULT_CLOUD.anonKey || '').trim()
+  };
+}
+function saveCloudConfig(cfg) {
+  lsSet(LS_CLOUD, cfg ? { url: cfg.url, anonKey: cfg.anonKey } : null);
+}
+
+/** De/para entre o formato do app e as colunas do banco. */
+function deParaToDb(d) {
+  return {
+    id: d.id,
+    cod_cliente: String(d.codCliente || ''),
+    cod_item: String(d.codItem || ''),
+    desc_item: String(d.descItem || ''),
+    cod_cbs: String(d.codCBS || ''),
+    mult: Math.max(1, Number(d.mult) || 1)
+  };
+}
+function deParaFromDb(r) {
+  return {
+    id: r.id,
+    codCliente: r.cod_cliente || '',
+    codItem: r.cod_item || '',
+    descItem: r.desc_item || '',
+    codCBS: r.cod_cbs || '',
+    mult: Math.max(1, Number(r.mult) || 1),
+    createdAt: r.created_at || ''
+  };
+}
+
+/** Cliente mínimo da API do Supabase. `fetchImpl` permite testar sem rede. */
+class SupabaseClient {
+  constructor({ url, anonKey, fetchImpl } = {}) {
+    this.url = String(url || '').replace(/\/+$/, '');
+    this.anonKey = anonKey || '';
+    const rawFetch = fetchImpl || ((...a) => fetch(...a));
+    // Erros de rede do navegador ("Failed to fetch") viram uma mensagem que o usuário entende
+    this.fetch = async (...a) => {
+      try {
+        return await rawFetch(...a);
+      } catch (err) {
+        throw new Error('Não consegui acessar o Supabase. Confira a URL do projeto e a sua internet.');
+      }
+    };
+    this.session = lsGet(LS_SESSION);
+  }
+
+  get configured() {
+    return Boolean(this.url && this.anonKey);
+  }
+
+  get user() {
+    return this.session?.user || null;
+  }
+
+  async _json(res) {
+    const text = await res.text();
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = text;
+    }
+    if (!res.ok) {
+      const msg = body?.error_description || body?.msg || body?.message || body?.error || `HTTP ${res.status}`;
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return body;
+  }
+
+  _storeSession(s) {
+    if (!s?.access_token) throw new Error('Resposta de login inválida.');
+    this.session = {
+      access_token: s.access_token,
+      refresh_token: s.refresh_token,
+      expires_at: s.expires_at || Math.floor(Date.now() / 1000) + (s.expires_in || 3600),
+      user: s.user ? { id: s.user.id, email: s.user.email } : this.session?.user || null
+    };
+    lsSet(LS_SESSION, this.session);
+  }
+
+  async signIn(email, password) {
+    const res = await this.fetch(`${this.url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: this.anonKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    this._storeSession(await this._json(res));
+    return this.user;
+  }
+
+  signOut() {
+    this.session = null;
+    lsSet(LS_SESSION, null);
+  }
+
+  async _ensureFreshToken() {
+    if (!this.session) throw new Error('Faça login na nuvem.');
+    const now = Math.floor(Date.now() / 1000);
+    if (this.session.expires_at - now > 60) return;
+    const res = await this.fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: this.anonKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: this.session.refresh_token })
+    });
+    try {
+      this._storeSession(await this._json(res));
+    } catch (err) {
+      this.signOut();
+      throw new Error('Sessão expirada. Entre novamente na nuvem.');
+    }
+  }
+
+  async rest(method, path, { body, prefer } = {}) {
+    await this._ensureFreshToken();
+    const headers = {
+      apikey: this.anonKey,
+      Authorization: `Bearer ${this.session.access_token}`,
+      'Content-Type': 'application/json'
+    };
+    if (prefer) headers.Prefer = prefer;
+    const res = await this.fetch(`${this.url}/rest/v1/${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    return this._json(res);
+  }
+}
+
+/**
+ * Repositório híbrido: IndexedDB sempre; nuvem quando configurada e logada.
+ * Mantém a mesma interface (load/save/reset) usada pelo app.
+ */
+class HybridRepository {
+  /**
+   * @param {object} p
+   * @param {import('./repository.js').IndexedDbRepository} p.local
+   * @param {object} p.seedData
+   * @param {SupabaseClient} [p.client]
+   * @param {(status:{mode:'local'|'cloud'|'error', message?:string, user?:object})=>void} [p.onStatus]
+   */
+  constructor({ local, seedData, client = null, onStatus = () => {} }) {
+    this.local = local;
+    this.seedData = seedData;
+    this.client = client;
+    this.onStatus = onStatus;
+    this.snapshot = null; // o que sabemos que está na nuvem: { depara: Map<id,json>, settings: Map<key,json> }
+  }
+
+  get cloudActive() {
+    return Boolean(this.client?.configured && this.client?.user);
+  }
+
+  setClient(client) {
+    this.client = client;
+    this.snapshot = null;
+  }
+
+  async _pull() {
+    const [rows, settings] = await Promise.all([
+      this.client.rest('GET', 'depara_vinculos?select=*&order=created_at.asc'),
+      this.client.rest('GET', 'app_settings?select=key,value')
+    ]);
+    return {
+      depara: (rows || []).map(deParaFromDb),
+      settings: Object.fromEntries((settings || []).map((s) => [s.key, s.value]))
+    };
+  }
+
+  _takeSnapshot(config) {
+    this.snapshot = {
+      depara: new Map((config.customDePara || []).map((d) => [d.id, JSON.stringify(deParaToDb(d))])),
+      settings: new Map(SYNCED_SETTING_KEYS.map((k) => [k, JSON.stringify(config[k] ?? null)]))
+    };
+  }
+
+  async load() {
+    const localCfg = await this.local.load();
+    if (!this.cloudActive) {
+      this.onStatus({ mode: 'local' });
+      return localCfg;
+    }
+    try {
+      const remote = await this._pull();
+      const merged = { ...localCfg, customDePara: remote.depara };
+      for (const k of SYNCED_SETTING_KEYS) {
+        if (remote.settings[k] !== undefined && remote.settings[k] !== null) merged[k] = remote.settings[k];
+      }
+      merged.frases = normalizeFrases(merged.frases);
+      this._takeSnapshot(merged);
+      await this.local.save(merged);
+      this.onStatus({ mode: 'cloud', user: this.client.user });
+      return merged;
+    } catch (err) {
+      this.onStatus({ mode: 'error', message: err.message, user: this.client.user });
+      return localCfg;
+    }
+  }
+
+  async save(config) {
+    config.customDePara = ensureDeParaIds(config.customDePara);
+    await this.local.save(config);
+    if (!this.cloudActive) return config;
+    if (!this.snapshot) {
+      // Ainda não sincronizou nesta sessão: compara com o que está na nuvem agora
+      const remote = await this._pull().catch(() => null);
+      this.snapshot = {
+        depara: new Map((remote?.depara || []).map((d) => [d.id, JSON.stringify(deParaToDb(d))])),
+        settings: new Map(
+          Object.entries(remote?.settings || {}).map(([k, v]) => [k, JSON.stringify(v ?? null)])
+        )
+      };
+    }
+    try {
+      await this._pushDiff(config);
+      this.onStatus({ mode: 'cloud', user: this.client.user });
+    } catch (err) {
+      // Fica salvo localmente; avisa para tentar de novo
+      this.onStatus({ mode: 'error', message: `Salvo só neste navegador: ${err.message}`, user: this.client.user });
+    }
+    return config;
+  }
+
+  async _pushDiff(config) {
+    const current = new Map((config.customDePara || []).map((d) => [d.id, JSON.stringify(deParaToDb(d))]));
+    const upserts = [];
+    for (const [id, json] of current) {
+      if (this.snapshot.depara.get(id) !== json) upserts.push(JSON.parse(json));
+    }
+    const removed = [...this.snapshot.depara.keys()].filter((id) => !current.has(id));
+
+    if (upserts.length) {
+      await this.client.rest('POST', 'depara_vinculos?on_conflict=id', {
+        body: upserts,
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      });
+    }
+    if (removed.length) {
+      await this.client.rest('DELETE', `depara_vinculos?id=in.(${removed.map(encodeURIComponent).join(',')})`);
+    }
+
+    const settingRows = [];
+    for (const k of SYNCED_SETTING_KEYS) {
+      const json = JSON.stringify(config[k] ?? null);
+      if (this.snapshot.settings.get(k) !== json) settingRows.push({ key: k, value: config[k] ?? null });
+    }
+    if (settingRows.length) {
+      await this.client.rest('POST', 'app_settings?on_conflict=key', {
+        body: settingRows,
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      });
+    }
+    this._takeSnapshot(config);
+  }
+
+  /** Envia para a nuvem o que existe neste navegador (primeira vez / migração). */
+  async uploadLocal() {
+    if (!this.cloudActive) throw new Error('Faça login na nuvem primeiro.');
+    const localCfg = await this.local.load();
+    const remote = await this._pull();
+    const key = (d) => `${d.codCliente || ''}|${d.codItem}|${d.codCBS}`;
+    const remoteKeys = new Set(remote.depara.map(key));
+    const toSend = ensureDeParaIds(localCfg.customDePara).filter((d) => !remoteKeys.has(key(d)));
+    if (toSend.length) {
+      await this.client.rest('POST', 'depara_vinculos?on_conflict=id', {
+        body: toSend.map(deParaToDb),
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      });
+    }
+    const settingRows = SYNCED_SETTING_KEYS.filter((k) => remote.settings[k] === undefined).map((k) => ({
+      key: k,
+      value: localCfg[k] ?? null
+    }));
+    if (settingRows.length) {
+      await this.client.rest('POST', 'app_settings?on_conflict=key', {
+        body: settingRows,
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      });
+    }
+    this.snapshot = null;
+    return { vinculos: toSend.length, configuracoes: settingRows.length };
+  }
+
+  /** "Voltar ao padrão" afeta só este navegador; a nuvem da equipe não é apagada. */
+  async reset() {
+    await this.local.reset();
+    this.snapshot = null;
+    return this.load().catch(() => createDefaultConfig(this.seedData));
+  }
+}
+
+return { HybridRepository, SupabaseClient, loadCloudConfig, saveCloudConfig };
+})();
 
 // === src/ui/icons.js ===
 /**
@@ -4135,7 +4857,8 @@ class TriageTableController {
     getEmptyContext,
     onClearFilters,
     onRowUpdated,
-    onOpenDeParaModal
+    onOpenDeParaModal,
+    onLinkCbs
   }) {
     this.tbodyEl = tbodyEl;
     this.paginationEl = paginationEl;
@@ -4147,6 +4870,7 @@ class TriageTableController {
     this.onClearFilters = onClearFilters || (() => {});
     this.onRowUpdated = onRowUpdated;
     this.onOpenDeParaModal = onOpenDeParaModal;
+    this.onLinkCbs = onLinkCbs;
 
     this.pageSize = 60;
     this.currentPage = 1;
@@ -4168,6 +4892,29 @@ class TriageTableController {
     if (this.scrollEl) {
       this.scrollEl.addEventListener('scroll', () => this.closePopover(), { passive: true });
     }
+
+    // Navegação de planilha: Enter/↓ desce na mesma coluna, Shift+Enter/↑ sobe.
+    // Na Observação, Enter também desce (o CSV não aceita quebra de linha).
+    this.tbodyEl.addEventListener('keydown', (e) => {
+      const target = e.target;
+      const field = target.dataset?.field;
+      if (!field) return;
+      const isArea = target.tagName === 'TEXTAREA';
+      let dir = 0;
+      if (e.key === 'Enter') dir = e.shiftKey ? -1 : 1;
+      else if (!isArea && e.key === 'ArrowDown') dir = 1;
+      else if (!isArea && e.key === 'ArrowUp') dir = -1;
+      if (!dir) return;
+      e.preventDefault();
+      const tr = target.closest('tr');
+      const nextTr = dir > 0 ? tr?.nextElementSibling : tr?.previousElementSibling;
+      const next = nextTr?.querySelector(`[data-field="${CSS.escape(field)}"]`);
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      if (next) {
+        next.focus();
+        if (typeof next.select === 'function') next.select();
+      }
+    });
 
     this.tbodyEl.addEventListener('input', (e) => {
       const target = e.target;
@@ -4258,9 +5005,100 @@ class TriageTableController {
         row.meta.unchanged = false;
         this.onRowUpdated(row, { skipFullRender: false });
       } else if (action === 'link-depara') {
-        this.onOpenDeParaModal(row);
+        this._togglePopover(btn, () => this._openLinkPopover(btn, tr, row));
       }
     });
+  }
+
+  /**
+   * Popover "Vincular CBS": permite ligar um ou mais códigos CBS ao item GTplan da linha.
+   * Mostra primeiro o que o TOTVS faturou nessa mesma OC (ordenado por semelhança de descrição).
+   */
+  _openLinkPopover(anchorBtn, tr, row) {
+    this.closePopover();
+    const { raw, meta } = row;
+    const pop = document.createElement('div');
+    pop.className = 'floating-popover link-popover';
+    pop.dataset.anchorId = anchorBtn.dataset.anchorId || '';
+    const suggestions = meta.ocSuggestions || [];
+    const likely = suggestions.filter((s) => s.score > 0);
+    const others = suggestions.filter((s) => s.score <= 0);
+    const linked = meta.candidateCbs || [];
+
+    const sugItem = (s) => `
+      <div class="link-sug ${s.score > 0 ? 'is-likely' : ''}">
+        <div style="min-width:0;">
+          <div><span class="mono strong">${esc(s.codCBS)}</span> ${s.score > 0 ? '<span class="chip chip-success">Provável</span>' : ''}</div>
+          <div class="sub-line clamp-2" title="${esc(s.desc)}">${esc(s.desc)}</div>
+          <div class="sub-line">Pedido <span class="mono">${esc(s.pedido || '—')}</span>${s.nf ? ` · NF <span class="mono">${esc(s.nf)}</span>` : ''}</div>
+        </div>
+        <button type="button" class="btn btn-xs btn-primary" data-link-code="${esc(s.codCBS)}">Vincular</button>
+      </div>`;
+
+    pop.innerHTML = `
+      <div class="floating-popover-head">
+        <strong>Vincular CBS ao item <span class="mono">${esc(raw['Cód. Item'])}</span></strong>
+        <div class="sub-line clamp-2">${esc(raw['Desc. Item'])}</div>
+        ${
+          linked.length
+            ? `<div class="sub-line">Já procurado no TOTVS como: ${linked.map((c) => `<span class="mono">${esc(c)}</span>`).join(', ')}</div>`
+            : ''
+        }
+      </div>
+      <div class="floating-popover-list">
+        ${
+          suggestions.length
+            ? `<div class="link-sec">O TOTVS tem nesta OC e ainda sem par no CSV:</div>${likely.map(sugItem).join('')}${
+                others.length
+                  ? `<details class="link-others"><summary>Outros ${others.length} item(ns) desta OC</summary>${others.map(sugItem).join('')}</details>`
+                  : ''
+              }`
+            : `<div class="popover-empty">${
+                meta.hasTotvs ? 'Este item já foi encontrado no TOTVS.' : 'Nenhum item livre desta OC foi encontrado no TOTVS. Informe o código manualmente abaixo.'
+              }</div>`
+        }
+      </div>
+      <form class="floating-popover-foot link-form" data-link-form>
+        <label class="field-label" style="grid-column:1/-1;">Ou digite um ou mais códigos CBS (separados por vírgula)</label>
+        <input type="text" class="cell-input mono" name="codes" placeholder="Ex.: 000445, 005958" />
+        <input type="number" class="cell-input mono" name="mult" min="1" value="1" title="Unidades por caixa" style="width:70px;" />
+        <button type="submit" class="btn btn-xs btn-primary">Salvar</button>
+        <label class="link-scope" style="grid-column:1/-1;">
+          <input type="checkbox" name="onlyClient" checked /> Só para o cliente ${esc(meta.codCliente)} (${esc(meta.cliente)})
+        </label>
+      </form>
+    `;
+
+    document.body.appendChild(pop);
+    this.activePopover = pop;
+    const form = pop.querySelector('[data-link-form]');
+
+    const submit = (codes, mult) => {
+      const clean = codes
+        .map((c) => String(c).replace(/\D/g, ''))
+        .filter(Boolean)
+        .map((c) => c.padStart(6, '0'));
+      if (!clean.length) return;
+      this.closePopover();
+      this.onLinkCbs?.({
+        codCliente: form.onlyClient.checked ? meta.codCliente : '',
+        codItem: raw['Cód. Item'],
+        descItem: raw['Desc. Item'],
+        codes: clean,
+        mult: Math.max(1, Number(mult) || 1)
+      });
+    };
+
+    pop.querySelectorAll('[data-link-code]').forEach((b) => {
+      b.addEventListener('click', () => submit([b.dataset.linkCode], form.mult.value));
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      submit(form.codes.value.split(/[,;\s]+/), form.mult.value);
+    });
+
+    this._positionPopover(pop, anchorBtn);
+    (pop.querySelector('[data-link-code]') || form.codes).focus();
   }
 
   _findRow(rowIndex) {
@@ -4590,9 +5428,13 @@ class TriageTableController {
     if (meta.unchanged) chips.push('<span class="chip chip-neutral" title="Observação igual à já enviada">Sem alteração</span>');
     if (!meta.unchanged && !meta.needsMotivo && meta.hasDePara) chips.push(`<span class="chip chip-success">${icon('check')} Pronta</span>`);
 
+    // Grade compacta: mostra os 2 status mais importantes; o resto aparece no "+N" (tooltip)
+    const shown = chips.slice(0, 2);
+    const rest = chips.slice(2).map((c) => c.replace(/<[^>]+>/g, '').trim());
     return `
-      <div class="chip-stack">${chips.join('')}</div>
-      <div class="row-num" style="margin-top:5px;">#${row.rowIndex}</div>
+      <div class="chip-stack">${shown.join('')}${
+        rest.length ? `<span class="chip chip-neutral" title="${esc(rest.join(' · '))}">+${rest.length}</span>` : ''
+      }</div>
     `;
   }
 
@@ -4601,7 +5443,7 @@ class TriageTableController {
     if (!hasCsv) {
       return `
         <tr>
-          <td colspan="6" class="empty-state">
+          <td colspan="13" class="empty-state">
             <h3>Comece carregando os arquivos</h3>
             <p>Carregue os <strong>dois arquivos</strong> acima. O app cruza o CSV do portal com a base TOTVS, preenche previsão, NF, Motivo e Observação de cada linha e gera o arquivo de resposta.</p>
             <ol class="empty-steps">
@@ -4615,7 +5457,7 @@ class TriageTableController {
     }
     return `
       <tr>
-        <td colspan="6" class="empty-state">
+        <td colspan="13" class="empty-state">
           <h3>Nenhuma linha encontrada</h3>
           <p>${hasFilters ? 'Nenhuma linha corresponde aos filtros atuais.' : 'O CSV carregado não tem linhas.'}</p>
           ${hasFilters ? '<button type="button" class="btn btn-sm" data-action="clear-filters">Limpar filtros</button>' : ''}
@@ -4651,74 +5493,64 @@ class TriageTableController {
           ? `${matchedMotive.codigo} — ${matchedMotive.desc}`
           : meta.resolvedMotiveDesc && motiveCode
             ? `${motiveCode} — ${meta.resolvedMotiveDesc}`
-            : motiveCode || 'Selecionar motivo…';
+            : motiveCode || 'Selecionar…';
 
         const ocExterno =
-          raw['Cód. OC Externo'] && raw['Cód. OC Externo'] !== '0'
-            ? `<span class="kv">Ext. <span class="mono">${esc(raw['Cód. OC Externo'])}</span></span>`
-            : '';
+          raw['Cód. OC Externo'] && raw['Cód. OC Externo'] !== '0' ? ` · Ext. ${raw['Cód. OC Externo']}` : '';
 
         const trClasses = [rowStatusClass(meta), meta.editedByUser ? 'row-edited' : ''].filter(Boolean).join(' ');
         const anchor = `r${row.rowIndex}`;
         const invNova = isInvalidDate('Nova Prev. Entrega', output['Nova Prev. Entrega']);
         const invDtNf = isInvalidDate('Dt. NF', output['Dt. NF']);
+        const likely = (meta.ocSuggestions || []).find((s) => s.score > 0);
+
+        // Célula CBS: código encontrado + atalho para vincular outro quando não cruzou com o TOTVS
+        let cbsCell;
+        if (!meta.codCBS) {
+          cbsCell = `<button type="button" class="btn btn-xs btn-link-cbs is-missing" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}" title="Item sem De-Para: escolher o código CBS">${icon('plus')} Vincular</button>`;
+        } else if (!meta.hasTotvs) {
+          cbsCell = `
+            <span class="mono" title="Procurado no TOTVS como: ${esc((meta.candidateCbs || []).join(', '))}">${esc(meta.codCBS)}</span>
+            <button type="button" class="btn btn-xs btn-link-cbs ${likely ? 'has-hint' : ''}" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}"
+              title="${likely ? `O TOTVS faturou esta OC com ${esc(likely.codCBS)} — ${esc(likely.desc)}` : 'Não achado no TOTVS: vincular outro código CBS'}">${icon('plus')}${likely ? ` ${esc(likely.codCBS)}?` : ' CBS'}</button>`;
+        } else {
+          cbsCell = `<span class="mono" title="Pedido TOTVS ${esc(meta.totvsPedido)}">${esc(meta.codCBS)}</span>`;
+        }
 
         return `
           <tr data-row-index="${row.rowIndex}" class="${trClasses}">
+            <td class="gutter" title="${meta.editedByUser ? 'Linha editada por você' : `Linha ${row.rowIndex} do CSV`}">${row.rowIndex}</td>
             <td data-status-cell>${this._statusCellHtml(row)}</td>
-            <td>
-              <div class="cell-line">
-                <span class="mono strong">OC ${esc(raw['Núm. OC'])}</span>
-                ${ocExterno}
-              </div>
-              <div class="cell-line" title="${esc(`${meta.codCliente} — ${meta.cliente} · ${meta.estab}`)}">
-                <span class="chip chip-neutral chip-square mono">${esc(meta.codCliente)}</span>
-                <span class="truncate" style="flex:1;">${esc(meta.cliente)}</span>
-              </div>
-              <div class="sub-line truncate">${esc(meta.estab)}</div>
-              <div class="sub-line">${
-                meta.hasTotvs
-                  ? `TOTVS <span class="mono">${esc(meta.totvsPedido)}</span>`
-                  : '<span class="muted">Sem pedido TOTVS</span>'
-              }</div>
+            <td class="mono" title="${esc(`OC ${raw['Núm. OC']}${ocExterno}`)}">
+              ${esc(raw['Núm. OC'])}
+              <div class="cell-sub">${meta.hasTotvs ? `TOTVS ${esc(meta.totvsPedido)}` : '<span class="muted">sem pedido</span>'}</div>
             </td>
-            <td>
-              <div class="cell-line">
-                <span class="mono">${esc(raw['Cód. Item'])}</span>
-                ${
-                  meta.codCBS
-                    ? `<span class="chip chip-success chip-square mono" title="Código CBS (TOTVS)">CBS ${esc(meta.codCBS)}</span>`
-                    : `<button type="button" class="btn btn-xs btn-ghost" data-action="link-depara" title="Cadastrar De-Para para este item">${icon('plus')} Vincular CBS</button>`
-                }
-              </div>
-              <div class="sub-line clamp-2" title="${esc(raw['Desc. Item'])}">${esc(raw['Desc. Item'])}</div>
-              <div class="kv">Qtd <b class="mono">${esc(raw['Qtd. Pendente'])}</b> · R$ <b class="mono">${esc(raw['Val. Unit.'])}</b></div>
+            <td title="${esc(`${meta.codCliente} — ${meta.cliente} · ${meta.estab}`)}">
+              <div class="truncate"><span class="mono">${esc(meta.codCliente)}</span> ${esc(meta.cliente)}</div>
+              <div class="cell-sub truncate">${esc(meta.estab)}</div>
             </td>
-            <td>
-              <div class="field-stack">
-                <label class="field-label" for="np-${anchor}" title="Nova previsão de entrega">Prev.</label>
-                <input id="np-${anchor}" type="text" class="cell-input mono ${invNova ? 'is-invalid' : ''}" data-field="Nova Prev. Entrega" value="${esc(output['Nova Prev. Entrega'])}" placeholder="DD/MM/AAAA" inputmode="numeric" />
-                <label class="field-label" for="nf-${anchor}">NF</label>
-                <input id="nf-${anchor}" type="text" class="cell-input mono" data-field="Núm. NF" value="${esc(output['Núm. NF'])}" placeholder="Nº NF / pedido" />
-                <label class="field-label" for="dn-${anchor}" title="Data da NF">Dt.NF</label>
-                <input id="dn-${anchor}" type="text" class="cell-input mono ${invDtNf ? 'is-invalid' : ''}" data-field="Dt. NF" value="${esc(output['Dt. NF'])}" placeholder="DD/MM/AAAA" inputmode="numeric" />
-              </div>
-              <div class="sub-line" title="Previsão atual no portal">Atual: <span class="mono">${esc(raw['Prev. Entrega Atual'] || '—')}</span></div>
+            <td title="${esc(`${raw['Cód. Item']} — ${raw['Desc. Item']}`)}">
+              <div class="truncate"><span class="mono">${esc(raw['Cód. Item'])}</span> ${esc(raw['Desc. Item'])}</div>
+              <div class="cell-sub">Atual: <span class="mono">${esc(raw['Prev. Entrega Atual'] || '—')}</span></div>
             </td>
-            <td>
+            <td class="cbs-cell">${cbsCell}</td>
+            <td class="num mono">${esc(raw['Qtd. Pendente'])}</td>
+            <td class="num mono">${esc(raw['Val. Unit.'])}</td>
+            <td class="edit"><input type="text" class="cell-input mono ${invNova ? 'is-invalid' : ''}" data-field="Nova Prev. Entrega" value="${esc(output['Nova Prev. Entrega'])}" placeholder="DD/MM/AAAA" inputmode="numeric" aria-label="Nova Prev. Entrega, linha ${row.rowIndex}" /></td>
+            <td class="edit"><input type="text" class="cell-input mono" data-field="Núm. NF" value="${esc(output['Núm. NF'])}" placeholder="NF / pedido" aria-label="Núm. NF, linha ${row.rowIndex}" /></td>
+            <td class="edit"><input type="text" class="cell-input mono ${invDtNf ? 'is-invalid' : ''}" data-field="Dt. NF" value="${esc(output['Dt. NF'])}" placeholder="DD/MM/AAAA" inputmode="numeric" aria-label="Dt. NF, linha ${row.rowIndex}" /></td>
+            <td class="edit">
               <button type="button" class="motive-picker-btn ${meta.needsMotivo ? 'missing' : ''}" data-action="open-motives" data-popover-trigger data-anchor-id="m-${anchor}" title="${esc(motiveLabel)}">
                 <span class="motive-picker-label">${esc(motiveLabel)}</span>
                 <span class="motive-picker-caret">${icon('chevron-down')}</span>
               </button>
             </td>
-            <td>
-              <div class="combo-wrap">
-                <textarea class="cell-input" rows="2" data-field="Observação" placeholder="Digite livremente ou escolha uma frase padrão…" aria-label="Observação da linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
-                <div class="obs-actions">
-                  <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}">Frases padrão ${icon('chevron-down')}</button>
-                  <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">Prefixo ${todayShort}:</button>
-                  <span data-obs-suggestion></span>
-                </div>
+            <td class="edit obs-cell">
+              <textarea class="cell-input" rows="1" data-field="Observação" placeholder="dd/mm: texto…" aria-label="Observação, linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
+              <div class="obs-actions">
+                <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}" title="Inserir frase padrão">Frases ${icon('chevron-down')}</button>
+                <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">${todayShort}:</button>
+                <span data-obs-suggestion></span>
               </div>
             </td>
           </tr>
@@ -4783,7 +5615,8 @@ class AdminModalController {
     getLoadedClients,
     onConfigChanged,
     onResetConfig,
-    showToast
+    showToast,
+    cloud
   }) {
     this.backdropEl = backdropEl;
     this.titleEl = titleEl;
@@ -4796,6 +5629,7 @@ class AdminModalController {
     this.onConfigChanged = onConfigChanged;
     this.onResetConfig = onResetConfig;
     this.showToast = showToast;
+    this.cloud = cloud || null;
 
     this.activeTab = 'motives';
     this.prefillDePara = null;
@@ -4846,7 +5680,8 @@ class AdminModalController {
       rules: 'Prazos e feriados',
       depara: 'Vínculos de itens e frases',
       bases: 'Atualizar bases e backup',
-      explorer: 'Consultar bases'
+      explorer: 'Consultar bases',
+      cloud: 'Nuvem (equipe)'
     };
     if (this.titleEl) this.titleEl.textContent = titles[this.activeTab] || 'Configurações';
 
@@ -4855,6 +5690,7 @@ class AdminModalController {
     else if (this.activeTab === 'depara') this._renderDeParaFrasesTab();
     else if (this.activeTab === 'bases') this._renderBasesBackupTab();
     else if (this.activeTab === 'explorer') this._renderExplorerTab();
+    else if (this.activeTab === 'cloud') this._renderCloudTab();
   }
 
   _renderMotivesTab() {
@@ -5183,8 +6019,9 @@ class AdminModalController {
             <input name="descItem" value="${esc(pre.descItem || '')}" placeholder="Descrição no portal" />
           </div>
           <div class="form-field">
-            <label>Cód. CBS (TOTVS) *</label>
-            <input name="codCBS" required placeholder="Ex: 001369" />
+            <label>Cód. CBS (TOTVS) * — vários? separe por vírgula</label>
+            <input name="codCBS" required placeholder="Ex: 005958, 000445" />
+
           </div>
           <div class="form-field">
             <label>Unidades por caixa</label>
@@ -5247,16 +6084,30 @@ class AdminModalController {
     this.bodyEl.querySelector('#form-add-depara').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      config.customDePara.push({
+      const codes = String(fd.get('codCBS') || '')
+        .split(/[,;\s]+/)
+        .map((c) => c.replace(/\D/g, ''))
+        .filter(Boolean)
+        .map((c) => c.padStart(6, '0'));
+      if (!codes.length) return;
+      const base = {
         codCliente: String(fd.get('codCliente') || '').trim(),
         codItem: String(fd.get('codItem') || '').trim(),
         descItem: String(fd.get('descItem') || '').trim(),
-        codCBS: String(fd.get('codCBS') || '').trim().padStart(6, '0'),
         mult: Math.max(1, Number(fd.get('mult')) || 1)
-      });
+      };
+      let added = 0;
+      for (const codCBS of codes) {
+        const dup = config.customDePara.some(
+          (d) => d.codItem === base.codItem && d.codCBS === codCBS && (d.codCliente || '') === base.codCliente
+        );
+        if (dup) continue;
+        config.customDePara.push({ ...base, codCBS, createdAt: new Date().toISOString() });
+        added++;
+      }
       this.prefillDePara = null;
       await this.onConfigChanged(config, true);
-      this.showToast('De-Para salvo e lote reprocessado.');
+      this.showToast(added ? `${added} vínculo(s) salvo(s) e lote recalculado.` : 'Esses vínculos já existiam.');
       this.render();
     });
 
@@ -5286,6 +6137,119 @@ class AdminModalController {
         await this.onConfigChanged(config, false);
         this.render();
       });
+    });
+  }
+
+  _renderCloudTab() {
+    if (!this.cloud) {
+      this.bodyEl.innerHTML = '<div class="callout">Nuvem indisponível nesta versão.</div>';
+      return;
+    }
+    const { cfg, user, status } = this.cloud.getState();
+    const nVinculos = (this.getConfig().customDePara || []).length;
+
+    const statusBox =
+      status.mode === 'cloud'
+        ? `<div class="callout callout-success"><strong>Conectado como ${esc(user?.email || '')}.</strong> Vínculos De-Para, motivos revisados, frases, feriados e prazos são compartilhados com a equipe.</div>`
+        : status.mode === 'error'
+          ? `<div class="callout callout-warn"><strong>Problema com a nuvem:</strong> ${esc(status.message || '')}. Os dados continuam salvos neste navegador.</div>`
+          : `<div class="callout"><strong>Hoje tudo fica só neste navegador.</strong> Se limpar os dados do navegador ou trocar de computador, os ${nVinculos} vínculo(s) e as configurações se perdem (a não ser que tenha um backup). Conecte a nuvem para guardar com segurança e compartilhar com a equipe.</div>`;
+
+    this.bodyEl.innerHTML = `
+      ${statusBox}
+
+      ${
+        user
+          ? `
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <button type="button" class="btn btn-primary" id="btn-cloud-upload" title="Envia para a nuvem os vínculos e configurações que existem só neste navegador (não apaga nada lá)">Enviar dados deste navegador para a nuvem</button>
+          <button type="button" class="btn" id="btn-cloud-reload">Atualizar da nuvem</button>
+          <button type="button" class="btn btn-danger-ghost" id="btn-cloud-logout" style="margin-left:auto;">Sair</button>
+        </div>
+        <div class="sub-line">Projeto: <span class="mono">${esc(cfg.url)}</span></div>`
+          : `
+        <form id="form-cloud" class="form-grid" autocomplete="on">
+          <div class="form-field" style="grid-column:span 2;">
+            <label>URL do projeto Supabase</label>
+            <input name="url" required value="${esc(cfg.url)}" placeholder="https://xxxx.supabase.co" />
+          </div>
+          <div class="form-field" style="grid-column:span 2;">
+            <label>Chave pública (anon key)</label>
+            <input name="anonKey" required value="${esc(cfg.anonKey)}" placeholder="eyJhbGciOi…" />
+          </div>
+          <div class="form-field">
+            <label>E-mail</label>
+            <input name="email" type="email" required autocomplete="username" />
+          </div>
+          <div class="form-field">
+            <label>Senha</label>
+            <input name="password" type="password" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn btn-primary">Entrar</button>
+        </form>
+        ${cfg.url ? '<button type="button" class="btn btn-xs btn-ghost" id="btn-cloud-forget">Esquecer este projeto</button>' : ''}`
+      }
+
+      <details>
+        <summary><strong>Como configurar a nuvem (uma vez só)</strong></summary>
+        <ol class="sub-line" style="line-height:1.6;">
+          <li>Crie um projeto gratuito em supabase.com.</li>
+          <li>No <em>SQL Editor</em>, rode o arquivo <span class="mono">supabase/schema.sql</span> deste projeto. Ele cria as tabelas e a regra de segurança que só libera usuários logados.</li>
+          <li>Em <em>Authentication → Providers → Email</em>, desligue o cadastro aberto, e em <em>Users → Add user</em> crie um login para cada pessoa da equipe.</li>
+          <li>Em <em>Project Settings → API</em>, copie a <em>Project URL</em> e a <em>anon public key</em> para os campos acima.</li>
+          <li>Depois de entrar, clique em <em>Enviar dados deste navegador para a nuvem</em> para levar os vínculos que você já cadastrou.</li>
+        </ol>
+        <div class="sub-line">Os arquivos CSV e a planilha TOTVS nunca vão para a nuvem: continuam sendo lidos só no seu navegador.</div>
+      </details>
+    `;
+
+    const run = async (btn, fn) => {
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Aguarde…';
+      try {
+        await fn();
+      } catch (err) {
+        this.showToast(`Nuvem: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+        this.render();
+      }
+    };
+
+    const form = this.bodyEl.querySelector('#form-cloud');
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      run(form.querySelector('button[type=submit]'), async () => {
+        const u = await this.cloud.connect({
+          url: fd.get('url'),
+          anonKey: fd.get('anonKey'),
+          email: fd.get('email'),
+          password: fd.get('password')
+        });
+        this.showToast(`Conectado como ${u?.email || 'usuário'}.`, 'success');
+      });
+    });
+    const on = (id, fn) => {
+      const b = this.bodyEl.querySelector(id);
+      b?.addEventListener('click', () => run(b, fn));
+    };
+    on('#btn-cloud-upload', async () => {
+      const r = await this.cloud.uploadLocal();
+      this.showToast(`Enviado: ${r.vinculos} vínculo(s) e ${r.configuracoes} configuração(ões) que faltavam na nuvem.`, 'success');
+    });
+    on('#btn-cloud-reload', async () => {
+      await this.cloud.reload();
+      this.showToast("Dados atualizados da nuvem.", "success");
+    });
+    on('#btn-cloud-logout', async () => {
+      await this.cloud.logout();
+      this.showToast('Você saiu da nuvem. Os dados seguem salvos neste navegador.');
+    });
+    on('#btn-cloud-forget', async () => {
+      await this.cloud.forget();
     });
   }
 
@@ -5648,7 +6612,48 @@ return { AdminModalController };
 
 
 
-const repo = new IndexedDbRepository(SEED_DATA);
+
+const cloudStatusEl = document.getElementById('cloud-status');
+let cloudStatus = { mode: 'local' };
+
+function renderCloudStatus() {
+  if (!cloudStatusEl) return;
+  const s = cloudStatus;
+  const map = {
+    local: ['is-local', 'Salvo neste navegador', 'Vínculos e configurações ficam só neste computador. Configure a nuvem em Configurações → Nuvem para compartilhar com a equipe.'],
+    cloud: ['is-cloud', 'Nuvem conectada', `Sincronizado com a equipe${s.user?.email ? ` · ${s.user.email}` : ''}`],
+    error: ['is-error', 'Nuvem com erro', s.message || 'Falha ao falar com a nuvem. Os dados seguem salvos neste navegador.']
+  };
+  const [cls, label, title] = map[s.mode] || map.local;
+  cloudStatusEl.className = `cloud-status ${cls}`;
+  cloudStatusEl.textContent = label;
+  cloudStatusEl.title = title;
+}
+
+function makeCloudClient() {
+  const cfg = loadCloudConfig();
+  return cfg.url && cfg.anonKey ? new SupabaseClient(cfg) : null;
+}
+
+const repo = new HybridRepository({
+  local: new IndexedDbRepository(SEED_DATA),
+  seedData: SEED_DATA,
+  client: makeCloudClient(),
+  onStatus: (s) => {
+    const wasError = cloudStatus.mode === 'error';
+    cloudStatus = s;
+    renderCloudStatus();
+    if (s.mode === 'error' && !wasError) showToast(s.message || 'Falha na nuvem.', 'error');
+  }
+});
+
+/** Recarrega a configuração (ex.: depois de login/logout na nuvem) e reprocessa o lote. */
+async function reloadConfig() {
+  state.config = await repo.load();
+  rebuildIndexes();
+  if (state.csvParsed) reprocessRows({ preserveEdited: true, silent: true, keepPage: true });
+  else renderAll();
+}
 
 const state = {
   config: null,
@@ -5738,7 +6743,7 @@ function rebuildIndexes() {
   state.hospitalIdx = buildHospitalIndex(cfg.hospitais, cfg.clientRules);
 }
 
-function reprocessRows({ preserveEdited = true } = {}) {
+function reprocessRows({ preserveEdited = true, silent = false, keepPage = false } = {}) {
   if (!state.csvParsed) {
     state.processedRows = [];
     renderAll();
@@ -5766,7 +6771,8 @@ function reprocessRows({ preserveEdited = true } = {}) {
   const elapsed = Math.round(performance.now() - t0);
 
   populateFilterDropdowns();
-  renderAll();
+  renderAll(keepPage ? tableCtrl.currentPage : 1);
+  if (silent) return;
   const kept = previousEdited.size > 0 ? ` (${fmt(previousEdited.size)} edições manuais mantidas)` : '';
   if (!state.totvsIdx) {
     // Sem a base TOTVS o motor não acha pedido/NF: quase nada é preenchido. Deixa isso explícito.
@@ -5920,6 +6926,30 @@ const tableCtrl = new TriageTableController({
       tableCtrl.render(filtered, tableCtrl.currentPage);
     }
   },
+  onLinkCbs: async ({ codCliente, codItem, descItem, codes, mult }) => {
+    const cfg = state.config;
+    const list = cfg.customDePara || (cfg.customDePara = []);
+    let added = 0;
+    for (const codCBS of codes) {
+      const dup = list.some((d) => d.codItem === codItem && d.codCBS === codCBS && (d.codCliente || '') === codCliente);
+      if (dup) continue;
+      list.push({ id: newId(), codCliente, codItem, descItem, codCBS, mult, createdAt: new Date().toISOString() });
+      added++;
+    }
+    if (!added) {
+      showToast('Esse vínculo já existia.', 'info');
+      return;
+    }
+    const before = state.processedRows.filter((r) => r.meta.hasTotvs).length;
+    state.config = await repo.save(cfg);
+    rebuildIndexes();
+    reprocessRows({ preserveEdited: true, silent: true, keepPage: true });
+    const gained = state.processedRows.filter((r) => r.meta.hasTotvs).length - before;
+    showToast(
+      `Vinculado ${codItem} → ${codes.join(', ')}.${gained > 0 ? ` ${gained} linha(s) agora encontradas no TOTVS.` : ' Nenhuma linha nova cruzou com o TOTVS ainda.'}`,
+      gained > 0 ? 'success' : 'info'
+    );
+  },
   onOpenDeParaModal: (row) => {
     adminModal.open('depara', {
       codCliente: row.meta.codCliente,
@@ -5957,6 +6987,35 @@ const adminModal = new AdminModalController({
     rebuildIndexes();
     if (state.csvParsed) {
       reprocessRows({ preserveEdited: true });
+    }
+  },
+  cloud: {
+    getState: () => ({ cfg: loadCloudConfig(), user: repo.client?.user || null, status: cloudStatus }),
+    connect: async ({ url, anonKey, email, password }) => {
+      const cfg = { url: String(url).trim().replace(/\/+$/, ''), anonKey: String(anonKey).trim() };
+      const client = new SupabaseClient(cfg);
+      await client.signIn(String(email).trim(), password); // erro sobe para a tela
+      saveCloudConfig(cfg);
+      repo.setClient(client);
+      await reloadConfig();
+      return client.user;
+    },
+    reload: () => reloadConfig(),
+    logout: async () => {
+      repo.client?.signOut();
+      repo.setClient(makeCloudClient());
+      await reloadConfig();
+    },
+    forget: async () => {
+      repo.client?.signOut();
+      saveCloudConfig(null);
+      repo.setClient(null);
+      await reloadConfig();
+    },
+    uploadLocal: async () => {
+      const res = await repo.uploadLocal();
+      await reloadConfig();
+      return res;
     }
   },
   showToast
@@ -6073,12 +7132,12 @@ function renderIngest() {
   }
 }
 
-function renderAll() {
+function renderAll(page = 1) {
   renderIngest();
   renderKpis();
   const filtered = getFilteredRows();
   renderToolbar(filtered.length);
-  tableCtrl.render(filtered, 1);
+  tableCtrl.render(filtered, page);
 }
 
 // Drag & Drop handlers
@@ -6350,12 +7409,15 @@ wireDropzone(dzCsv, inpCsv, handleCsvFile);
 wireDropzone(dzTotvs, inpTotvs, handleTotvsFile);
 
 async function boot() {
+  renderCloudStatus();
   state.config = await repo.load();
   rebuildIndexes();
   renderAll();
 }
 
 boot();
+
+document.getElementById('cloud-status')?.addEventListener('click', () => adminModal.open('cloud'));
 
 </script>
 </body>

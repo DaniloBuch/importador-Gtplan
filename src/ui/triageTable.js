@@ -39,7 +39,8 @@ export class TriageTableController {
     getEmptyContext,
     onClearFilters,
     onRowUpdated,
-    onOpenDeParaModal
+    onOpenDeParaModal,
+    onLinkCbs
   }) {
     this.tbodyEl = tbodyEl;
     this.paginationEl = paginationEl;
@@ -51,6 +52,7 @@ export class TriageTableController {
     this.onClearFilters = onClearFilters || (() => {});
     this.onRowUpdated = onRowUpdated;
     this.onOpenDeParaModal = onOpenDeParaModal;
+    this.onLinkCbs = onLinkCbs;
 
     this.pageSize = 60;
     this.currentPage = 1;
@@ -72,6 +74,29 @@ export class TriageTableController {
     if (this.scrollEl) {
       this.scrollEl.addEventListener('scroll', () => this.closePopover(), { passive: true });
     }
+
+    // Navegação de planilha: Enter/↓ desce na mesma coluna, Shift+Enter/↑ sobe.
+    // Na Observação, Enter também desce (o CSV não aceita quebra de linha).
+    this.tbodyEl.addEventListener('keydown', (e) => {
+      const target = e.target;
+      const field = target.dataset?.field;
+      if (!field) return;
+      const isArea = target.tagName === 'TEXTAREA';
+      let dir = 0;
+      if (e.key === 'Enter') dir = e.shiftKey ? -1 : 1;
+      else if (!isArea && e.key === 'ArrowDown') dir = 1;
+      else if (!isArea && e.key === 'ArrowUp') dir = -1;
+      if (!dir) return;
+      e.preventDefault();
+      const tr = target.closest('tr');
+      const nextTr = dir > 0 ? tr?.nextElementSibling : tr?.previousElementSibling;
+      const next = nextTr?.querySelector(`[data-field="${CSS.escape(field)}"]`);
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      if (next) {
+        next.focus();
+        if (typeof next.select === 'function') next.select();
+      }
+    });
 
     this.tbodyEl.addEventListener('input', (e) => {
       const target = e.target;
@@ -162,9 +187,100 @@ export class TriageTableController {
         row.meta.unchanged = false;
         this.onRowUpdated(row, { skipFullRender: false });
       } else if (action === 'link-depara') {
-        this.onOpenDeParaModal(row);
+        this._togglePopover(btn, () => this._openLinkPopover(btn, tr, row));
       }
     });
+  }
+
+  /**
+   * Popover "Vincular CBS": permite ligar um ou mais códigos CBS ao item GTplan da linha.
+   * Mostra primeiro o que o TOTVS faturou nessa mesma OC (ordenado por semelhança de descrição).
+   */
+  _openLinkPopover(anchorBtn, tr, row) {
+    this.closePopover();
+    const { raw, meta } = row;
+    const pop = document.createElement('div');
+    pop.className = 'floating-popover link-popover';
+    pop.dataset.anchorId = anchorBtn.dataset.anchorId || '';
+    const suggestions = meta.ocSuggestions || [];
+    const likely = suggestions.filter((s) => s.score > 0);
+    const others = suggestions.filter((s) => s.score <= 0);
+    const linked = meta.candidateCbs || [];
+
+    const sugItem = (s) => `
+      <div class="link-sug ${s.score > 0 ? 'is-likely' : ''}">
+        <div style="min-width:0;">
+          <div><span class="mono strong">${esc(s.codCBS)}</span> ${s.score > 0 ? '<span class="chip chip-success">Provável</span>' : ''}</div>
+          <div class="sub-line clamp-2" title="${esc(s.desc)}">${esc(s.desc)}</div>
+          <div class="sub-line">Pedido <span class="mono">${esc(s.pedido || '—')}</span>${s.nf ? ` · NF <span class="mono">${esc(s.nf)}</span>` : ''}</div>
+        </div>
+        <button type="button" class="btn btn-xs btn-primary" data-link-code="${esc(s.codCBS)}">Vincular</button>
+      </div>`;
+
+    pop.innerHTML = `
+      <div class="floating-popover-head">
+        <strong>Vincular CBS ao item <span class="mono">${esc(raw['Cód. Item'])}</span></strong>
+        <div class="sub-line clamp-2">${esc(raw['Desc. Item'])}</div>
+        ${
+          linked.length
+            ? `<div class="sub-line">Já procurado no TOTVS como: ${linked.map((c) => `<span class="mono">${esc(c)}</span>`).join(', ')}</div>`
+            : ''
+        }
+      </div>
+      <div class="floating-popover-list">
+        ${
+          suggestions.length
+            ? `<div class="link-sec">O TOTVS tem nesta OC e ainda sem par no CSV:</div>${likely.map(sugItem).join('')}${
+                others.length
+                  ? `<details class="link-others"><summary>Outros ${others.length} item(ns) desta OC</summary>${others.map(sugItem).join('')}</details>`
+                  : ''
+              }`
+            : `<div class="popover-empty">${
+                meta.hasTotvs ? 'Este item já foi encontrado no TOTVS.' : 'Nenhum item livre desta OC foi encontrado no TOTVS. Informe o código manualmente abaixo.'
+              }</div>`
+        }
+      </div>
+      <form class="floating-popover-foot link-form" data-link-form>
+        <label class="field-label" style="grid-column:1/-1;">Ou digite um ou mais códigos CBS (separados por vírgula)</label>
+        <input type="text" class="cell-input mono" name="codes" placeholder="Ex.: 000445, 005958" />
+        <input type="number" class="cell-input mono" name="mult" min="1" value="1" title="Unidades por caixa" style="width:70px;" />
+        <button type="submit" class="btn btn-xs btn-primary">Salvar</button>
+        <label class="link-scope" style="grid-column:1/-1;">
+          <input type="checkbox" name="onlyClient" checked /> Só para o cliente ${esc(meta.codCliente)} (${esc(meta.cliente)})
+        </label>
+      </form>
+    `;
+
+    document.body.appendChild(pop);
+    this.activePopover = pop;
+    const form = pop.querySelector('[data-link-form]');
+
+    const submit = (codes, mult) => {
+      const clean = codes
+        .map((c) => String(c).replace(/\D/g, ''))
+        .filter(Boolean)
+        .map((c) => c.padStart(6, '0'));
+      if (!clean.length) return;
+      this.closePopover();
+      this.onLinkCbs?.({
+        codCliente: form.onlyClient.checked ? meta.codCliente : '',
+        codItem: raw['Cód. Item'],
+        descItem: raw['Desc. Item'],
+        codes: clean,
+        mult: Math.max(1, Number(mult) || 1)
+      });
+    };
+
+    pop.querySelectorAll('[data-link-code]').forEach((b) => {
+      b.addEventListener('click', () => submit([b.dataset.linkCode], form.mult.value));
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      submit(form.codes.value.split(/[,;\s]+/), form.mult.value);
+    });
+
+    this._positionPopover(pop, anchorBtn);
+    (pop.querySelector('[data-link-code]') || form.codes).focus();
   }
 
   _findRow(rowIndex) {
@@ -494,9 +610,13 @@ export class TriageTableController {
     if (meta.unchanged) chips.push('<span class="chip chip-neutral" title="Observação igual à já enviada">Sem alteração</span>');
     if (!meta.unchanged && !meta.needsMotivo && meta.hasDePara) chips.push(`<span class="chip chip-success">${icon('check')} Pronta</span>`);
 
+    // Grade compacta: mostra os 2 status mais importantes; o resto aparece no "+N" (tooltip)
+    const shown = chips.slice(0, 2);
+    const rest = chips.slice(2).map((c) => c.replace(/<[^>]+>/g, '').trim());
     return `
-      <div class="chip-stack">${chips.join('')}</div>
-      <div class="row-num" style="margin-top:5px;">#${row.rowIndex}</div>
+      <div class="chip-stack">${shown.join('')}${
+        rest.length ? `<span class="chip chip-neutral" title="${esc(rest.join(' · '))}">+${rest.length}</span>` : ''
+      }</div>
     `;
   }
 
@@ -505,7 +625,7 @@ export class TriageTableController {
     if (!hasCsv) {
       return `
         <tr>
-          <td colspan="6" class="empty-state">
+          <td colspan="13" class="empty-state">
             <h3>Comece carregando os arquivos</h3>
             <p>Carregue os <strong>dois arquivos</strong> acima. O app cruza o CSV do portal com a base TOTVS, preenche previsão, NF, Motivo e Observação de cada linha e gera o arquivo de resposta.</p>
             <ol class="empty-steps">
@@ -519,7 +639,7 @@ export class TriageTableController {
     }
     return `
       <tr>
-        <td colspan="6" class="empty-state">
+        <td colspan="13" class="empty-state">
           <h3>Nenhuma linha encontrada</h3>
           <p>${hasFilters ? 'Nenhuma linha corresponde aos filtros atuais.' : 'O CSV carregado não tem linhas.'}</p>
           ${hasFilters ? '<button type="button" class="btn btn-sm" data-action="clear-filters">Limpar filtros</button>' : ''}
@@ -555,74 +675,64 @@ export class TriageTableController {
           ? `${matchedMotive.codigo} — ${matchedMotive.desc}`
           : meta.resolvedMotiveDesc && motiveCode
             ? `${motiveCode} — ${meta.resolvedMotiveDesc}`
-            : motiveCode || 'Selecionar motivo…';
+            : motiveCode || 'Selecionar…';
 
         const ocExterno =
-          raw['Cód. OC Externo'] && raw['Cód. OC Externo'] !== '0'
-            ? `<span class="kv">Ext. <span class="mono">${esc(raw['Cód. OC Externo'])}</span></span>`
-            : '';
+          raw['Cód. OC Externo'] && raw['Cód. OC Externo'] !== '0' ? ` · Ext. ${raw['Cód. OC Externo']}` : '';
 
         const trClasses = [rowStatusClass(meta), meta.editedByUser ? 'row-edited' : ''].filter(Boolean).join(' ');
         const anchor = `r${row.rowIndex}`;
         const invNova = isInvalidDate('Nova Prev. Entrega', output['Nova Prev. Entrega']);
         const invDtNf = isInvalidDate('Dt. NF', output['Dt. NF']);
+        const likely = (meta.ocSuggestions || []).find((s) => s.score > 0);
+
+        // Célula CBS: código encontrado + atalho para vincular outro quando não cruzou com o TOTVS
+        let cbsCell;
+        if (!meta.codCBS) {
+          cbsCell = `<button type="button" class="btn btn-xs btn-link-cbs is-missing" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}" title="Item sem De-Para: escolher o código CBS">${icon('plus')} Vincular</button>`;
+        } else if (!meta.hasTotvs) {
+          cbsCell = `
+            <span class="mono" title="Procurado no TOTVS como: ${esc((meta.candidateCbs || []).join(', '))}">${esc(meta.codCBS)}</span>
+            <button type="button" class="btn btn-xs btn-link-cbs ${likely ? 'has-hint' : ''}" data-action="link-depara" data-popover-trigger data-anchor-id="l-${anchor}"
+              title="${likely ? `O TOTVS faturou esta OC com ${esc(likely.codCBS)} — ${esc(likely.desc)}` : 'Não achado no TOTVS: vincular outro código CBS'}">${icon('plus')}${likely ? ` ${esc(likely.codCBS)}?` : ' CBS'}</button>`;
+        } else {
+          cbsCell = `<span class="mono" title="Pedido TOTVS ${esc(meta.totvsPedido)}">${esc(meta.codCBS)}</span>`;
+        }
 
         return `
           <tr data-row-index="${row.rowIndex}" class="${trClasses}">
+            <td class="gutter" title="${meta.editedByUser ? 'Linha editada por você' : `Linha ${row.rowIndex} do CSV`}">${row.rowIndex}</td>
             <td data-status-cell>${this._statusCellHtml(row)}</td>
-            <td>
-              <div class="cell-line">
-                <span class="mono strong">OC ${esc(raw['Núm. OC'])}</span>
-                ${ocExterno}
-              </div>
-              <div class="cell-line" title="${esc(`${meta.codCliente} — ${meta.cliente} · ${meta.estab}`)}">
-                <span class="chip chip-neutral chip-square mono">${esc(meta.codCliente)}</span>
-                <span class="truncate" style="flex:1;">${esc(meta.cliente)}</span>
-              </div>
-              <div class="sub-line truncate">${esc(meta.estab)}</div>
-              <div class="sub-line">${
-                meta.hasTotvs
-                  ? `TOTVS <span class="mono">${esc(meta.totvsPedido)}</span>`
-                  : '<span class="muted">Sem pedido TOTVS</span>'
-              }</div>
+            <td class="mono" title="${esc(`OC ${raw['Núm. OC']}${ocExterno}`)}">
+              ${esc(raw['Núm. OC'])}
+              <div class="cell-sub">${meta.hasTotvs ? `TOTVS ${esc(meta.totvsPedido)}` : '<span class="muted">sem pedido</span>'}</div>
             </td>
-            <td>
-              <div class="cell-line">
-                <span class="mono">${esc(raw['Cód. Item'])}</span>
-                ${
-                  meta.codCBS
-                    ? `<span class="chip chip-success chip-square mono" title="Código CBS (TOTVS)">CBS ${esc(meta.codCBS)}</span>`
-                    : `<button type="button" class="btn btn-xs btn-ghost" data-action="link-depara" title="Cadastrar De-Para para este item">${icon('plus')} Vincular CBS</button>`
-                }
-              </div>
-              <div class="sub-line clamp-2" title="${esc(raw['Desc. Item'])}">${esc(raw['Desc. Item'])}</div>
-              <div class="kv">Qtd <b class="mono">${esc(raw['Qtd. Pendente'])}</b> · R$ <b class="mono">${esc(raw['Val. Unit.'])}</b></div>
+            <td title="${esc(`${meta.codCliente} — ${meta.cliente} · ${meta.estab}`)}">
+              <div class="truncate"><span class="mono">${esc(meta.codCliente)}</span> ${esc(meta.cliente)}</div>
+              <div class="cell-sub truncate">${esc(meta.estab)}</div>
             </td>
-            <td>
-              <div class="field-stack">
-                <label class="field-label" for="np-${anchor}" title="Nova previsão de entrega">Prev.</label>
-                <input id="np-${anchor}" type="text" class="cell-input mono ${invNova ? 'is-invalid' : ''}" data-field="Nova Prev. Entrega" value="${esc(output['Nova Prev. Entrega'])}" placeholder="DD/MM/AAAA" inputmode="numeric" />
-                <label class="field-label" for="nf-${anchor}">NF</label>
-                <input id="nf-${anchor}" type="text" class="cell-input mono" data-field="Núm. NF" value="${esc(output['Núm. NF'])}" placeholder="Nº NF / pedido" />
-                <label class="field-label" for="dn-${anchor}" title="Data da NF">Dt.NF</label>
-                <input id="dn-${anchor}" type="text" class="cell-input mono ${invDtNf ? 'is-invalid' : ''}" data-field="Dt. NF" value="${esc(output['Dt. NF'])}" placeholder="DD/MM/AAAA" inputmode="numeric" />
-              </div>
-              <div class="sub-line" title="Previsão atual no portal">Atual: <span class="mono">${esc(raw['Prev. Entrega Atual'] || '—')}</span></div>
+            <td title="${esc(`${raw['Cód. Item']} — ${raw['Desc. Item']}`)}">
+              <div class="truncate"><span class="mono">${esc(raw['Cód. Item'])}</span> ${esc(raw['Desc. Item'])}</div>
+              <div class="cell-sub">Atual: <span class="mono">${esc(raw['Prev. Entrega Atual'] || '—')}</span></div>
             </td>
-            <td>
+            <td class="cbs-cell">${cbsCell}</td>
+            <td class="num mono">${esc(raw['Qtd. Pendente'])}</td>
+            <td class="num mono">${esc(raw['Val. Unit.'])}</td>
+            <td class="edit"><input type="text" class="cell-input mono ${invNova ? 'is-invalid' : ''}" data-field="Nova Prev. Entrega" value="${esc(output['Nova Prev. Entrega'])}" placeholder="DD/MM/AAAA" inputmode="numeric" aria-label="Nova Prev. Entrega, linha ${row.rowIndex}" /></td>
+            <td class="edit"><input type="text" class="cell-input mono" data-field="Núm. NF" value="${esc(output['Núm. NF'])}" placeholder="NF / pedido" aria-label="Núm. NF, linha ${row.rowIndex}" /></td>
+            <td class="edit"><input type="text" class="cell-input mono ${invDtNf ? 'is-invalid' : ''}" data-field="Dt. NF" value="${esc(output['Dt. NF'])}" placeholder="DD/MM/AAAA" inputmode="numeric" aria-label="Dt. NF, linha ${row.rowIndex}" /></td>
+            <td class="edit">
               <button type="button" class="motive-picker-btn ${meta.needsMotivo ? 'missing' : ''}" data-action="open-motives" data-popover-trigger data-anchor-id="m-${anchor}" title="${esc(motiveLabel)}">
                 <span class="motive-picker-label">${esc(motiveLabel)}</span>
                 <span class="motive-picker-caret">${icon('chevron-down')}</span>
               </button>
             </td>
-            <td>
-              <div class="combo-wrap">
-                <textarea class="cell-input" rows="2" data-field="Observação" placeholder="Digite livremente ou escolha uma frase padrão…" aria-label="Observação da linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
-                <div class="obs-actions">
-                  <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}">Frases padrão ${icon('chevron-down')}</button>
-                  <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">Prefixo ${todayShort}:</button>
-                  <span data-obs-suggestion></span>
-                </div>
+            <td class="edit obs-cell">
+              <textarea class="cell-input" rows="1" data-field="Observação" placeholder="dd/mm: texto…" aria-label="Observação, linha ${row.rowIndex}">${esc(output['Observação'])}</textarea>
+              <div class="obs-actions">
+                <button type="button" class="btn btn-xs" data-action="open-frases" data-popover-trigger data-anchor-id="f-${anchor}" title="Inserir frase padrão">Frases ${icon('chevron-down')}</button>
+                <button type="button" class="btn btn-xs btn-ghost" data-action="prefix-today" title="Colocar o prefixo de hoje (${todayShort}:) no início">${todayShort}:</button>
+                <span data-obs-suggestion></span>
               </div>
             </td>
           </tr>

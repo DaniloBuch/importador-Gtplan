@@ -26,6 +26,7 @@
     </div>
 
     <nav class="header-tools" aria-label="Ferramentas">
+      <button type="button" class="cloud-status is-local" id="cloud-status">Salvo neste navegador</button>
       <button type="button" class="btn btn-header" id="btn-open-review" title="Escolher qual código de motivo cada cliente usa em cada situação">
         Revisar motivos
         <span class="badge-count" id="btn-review-count" hidden>0</span>
@@ -108,23 +109,37 @@
       </div>
 
       <div class="table-scroll" id="table-scroll">
-        <table class="triage-table">
+        <table class="triage-table sheet">
           <colgroup>
-            <col style="width:120px" />
-            <col style="width:200px" />
-            <col style="width:220px" />
-            <col style="width:180px" />
-            <col style="width:220px" />
+            <col style="width:40px" />
+            <col style="width:118px" />
+            <col style="width:100px" />
+            <col style="width:136px" />
+            <col style="width:186px" />
+            <col style="width:122px" />
+            <col style="width:52px" />
+            <col style="width:60px" />
+            <col style="width:96px" />
+            <col style="width:96px" />
+            <col style="width:92px" />
+            <col style="width:190px" />
             <col />
           </colgroup>
           <thead>
             <tr>
+              <th class="gutter" aria-label="Linha"></th>
               <th>Status</th>
-              <th>Pedido</th>
-              <th>Item</th>
-              <th>Entrega / NF</th>
-              <th>Motivo</th>
-              <th>Observação</th>
+              <th>Núm. OC</th>
+              <th>Cliente / Estab.</th>
+              <th>Item GTplan</th>
+              <th title="Código do produto no TOTVS">CBS</th>
+              <th class="num" title="Qtd. Pendente">Qtd.</th>
+              <th class="num" title="Val. Unit. no GTplan">Val.</th>
+              <th class="edit-col" title="Coluna Q do CSV">Nova Prev. <span class="col-letter">Q</span></th>
+              <th class="edit-col" title="Coluna R do CSV">Núm. NF <span class="col-letter">R</span></th>
+              <th class="edit-col" title="Coluna S do CSV">Dt. NF <span class="col-letter">S</span></th>
+              <th class="edit-col" title="Coluna T do CSV">Motivo <span class="col-letter">T</span></th>
+              <th class="edit-col" title="Coluna U do CSV">Observação <span class="col-letter">U</span></th>
             </tr>
           </thead>
           <tbody id="triage-tbody"></tbody>
@@ -147,6 +162,7 @@
         <button type="button" class="tab-btn" data-tab="depara" role="tab">Vínculos de itens e frases</button>
         <button type="button" class="tab-btn" data-tab="bases" role="tab">Atualizar bases e backup</button>
         <button type="button" class="tab-btn" data-tab="explorer" role="tab">Consultar bases</button>
+        <button type="button" class="tab-btn" data-tab="cloud" role="tab">Nuvem (equipe)</button>
       </div>
       <div class="modal-body" id="admin-body"></div>
     </div>

@@ -21,3 +21,29 @@ Aplicação web client-side (HTML, CSS e JavaScript puro) para triagem, cruzamen
 - **Servidor local:** execute `start.bat` (ou `node server.mjs`) e acesse `http://127.0.0.1:4173/`.
 - **Gerar bundle após alterações em `src/`:** `node build.mjs`
 - **Rodar testes automatizados:** `node --test tests/engine.test.mjs`
+
+## Vincular mais de um código CBS a um item
+
+Quando uma linha fica **Sem Motivo** porque o TOTVS faturou a OC com outro código (produto substituto),
+a coluna **CBS** mostra um botão `+ CBS` (verde com o código sugerido quando há um provável).
+O popover lista o que o TOTVS tem naquela mesma OC e ainda não cruzou com nenhuma linha do CSV,
+do mais parecido para o menos parecido. Um clique em **Vincular** salva o vínculo (por padrão só para aquele cliente)
+e recalcula o lote. Também é possível digitar vários códigos separados por vírgula, aqui ou em
+*Configurações → Vínculos de itens e frases*.
+
+## Onde os dados ficam salvos
+
+- **Sem nuvem (padrão):** vínculos, motivos revisados, frases, feriados e prazos ficam no IndexedDB do navegador.
+  Somem se os dados do navegador forem limpos; use *Atualizar bases e backup → Baixar backup*.
+- **Com nuvem (Supabase):** rode `supabase/schema.sql` no SQL Editor do projeto, desligue o cadastro aberto,
+  crie os usuários da equipe e entre em *Configurações → Nuvem (equipe)* com a URL e a anon key.
+  Para não precisar digitar URL/chave em cada computador, preencha `DEFAULT_CLOUD` em
+  `src/storage/cloudRepository.js` e rode `node build.mjs`. A anon key é pública por design;
+  quem protege os dados é o Row Level Security (só usuários logados).
+  Os arquivos CSV e a planilha TOTVS nunca saem do navegador.
+
+## Publicar no GitHub Pages
+
+O app é um arquivo estático, então funciona no GitHub Pages. Em *Settings → Pages* escolha **GitHub Actions**
+e rode manualmente o workflow **Publicar no GitHub Pages** (`.github/workflows/pages.yml`).
+Atenção: o site publicado é público e leva junto as bases embutidas (`src/data/seedData.*`).

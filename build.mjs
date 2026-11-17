@@ -13,6 +13,7 @@ const ORDERED_MODULES = [
   { file: 'src/core/ruleEngine.js', scope: false },
   { file: 'src/data/seedData.js', scope: false },
   { file: 'src/storage/repository.js', scope: false },
+  { file: 'src/storage/cloudRepository.js', scope: true, exports: ['HybridRepository', 'SupabaseClient', 'loadCloudConfig', 'saveCloudConfig'] },
   { file: 'src/ui/icons.js', scope: false },
   { file: 'src/ui/triageTable.js', scope: true, exports: ['TriageTableController'] },
   { file: 'src/ui/adminModal.js', scope: true, exports: ['AdminModalController'] },
