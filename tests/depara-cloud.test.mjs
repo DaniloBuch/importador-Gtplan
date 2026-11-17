@@ -176,7 +176,7 @@ const SEED = { todasBases: [], hospitais: [], motivos: [], motiveSlugMap: [], fr
 test('nuvem: login errado mostra a mensagem do Supabase', async () => {
   const sb = fakeSupabase();
   const client = new SupabaseClient({ url: 'https://x.supabase.co', anonKey: 'anon', fetchImpl: sb.fetchImpl });
-  await assert.rejects(client.signIn('a@b.com', 'errada'), /Invalid login credentials/);
+  await assert.rejects(client.signIn('a@b.com', 'errada'), /E-mail ou senha incorretos/);
 });
 
 test('nuvem: sem login funciona só local; com login grava vínculos e configurações e outro navegador recebe', async () => {
