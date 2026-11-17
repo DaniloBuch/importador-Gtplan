@@ -395,6 +395,24 @@ b {
   font-size: 13.5px;
 }
 
+.dz-step {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--cbs-roxo-700, #4b2a85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+.dropzone.loaded .dz-step {
+  background: var(--cbs-sucesso, #1a7f4b);
+}
+
 .dz-file-hint {
   font-weight: 400;
   font-size: 12px;

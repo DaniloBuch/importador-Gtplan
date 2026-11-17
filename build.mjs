@@ -50,6 +50,7 @@ async function main() {
   const bundledJs = chunks.join('\n\n').replace(/<\/script>/gi, '<\\/script>');
 
   let singleHtml = html
+    .replace(/\s*<!-- FILE-GUARD:START[\s\S]*?FILE-GUARD:END -->/, '')
     .replace('<link rel="stylesheet" href="./styles/cbs-tokens.css" />', () => `<style>\n${tokensCss}\n</style>`)
     .replace('<link rel="stylesheet" href="./styles/main.css" />', () => `<style>\n${css}\n</style>`)
     .replace('src="./assets/brand/logo-branco.svg"', `src="data:image/svg+xml;base64,${logoB64}"`);

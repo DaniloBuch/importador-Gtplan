@@ -1,5 +1,5 @@
 import { formatShortBRDate, todayUtc } from '../core/dates.js';
-import { inferSlugFromObservationText } from '../core/motiveResolver.js';
+import { INTENT_SLUGS, inferSlugFromObservationText } from '../core/motiveResolver.js';
 import { stripDatePrefix } from '../core/ruleEngine.js';
 import { icon } from './icons.js';
 
@@ -315,7 +315,7 @@ export class TriageTableController {
           (f, idx) => `
           <button type="button" class="popover-item" data-frase-idx="${idx}">
             <span>${esc(f.frase)}</span>
-            ${f.slug ? `<span class="popover-item-sub">Sugere motivo: ${esc(f.slug)}</span>` : ''}
+            ${f.slug ? `<span class="popover-item-sub">Situação: ${esc(INTENT_SLUGS.find((s) => s.slug === f.slug)?.label || f.slug)}</span>` : ''}
           </button>`
         )
         .join('');
@@ -507,11 +507,11 @@ export class TriageTableController {
         <tr>
           <td colspan="6" class="empty-state">
             <h3>Comece carregando os arquivos</h3>
-            <p>O motor cruza o CSV do portal com a base TOTVS, sugere Motivo e Observação para cada linha e gera o arquivo de resposta.</p>
+            <p>Carregue os <strong>dois arquivos</strong> acima. O app cruza o CSV do portal com a base TOTVS, preenche previsão, NF, Motivo e Observação de cada linha e gera o arquivo de resposta.</p>
             <ol class="empty-steps">
-              <li><span class="step-n">01.</span><span><strong>CSV do GTplan</strong><br><span class="sub-line">exportado do portal</span></span></li>
-              <li><span class="step-n">02.</span><span><strong>Base TOTVS</strong><br><span class="sub-line">bimestreamil.xlsx</span></span></li>
-              <li><span class="step-n">03.</span><span><strong>Revise as pendências</strong><br><span class="sub-line">De-Para e Motivo</span></span></li>
+              <li><span class="step-n">01.</span><span><strong>CSV do GTplan</strong><br><span class="sub-line">baixado do portal (pode ter vários clientes)</span></span></li>
+              <li><span class="step-n">02.</span><span><strong>Base TOTVS</strong><br><span class="sub-line">bimestreamil.xlsx atualizada</span></span></li>
+              <li><span class="step-n">03.</span><span><strong>Revise as pendências</strong><br><span class="sub-line">clique nos cartões em vermelho/amarelo</span></span></li>
               <li><span class="step-n">04.</span><span><strong>Exporte o CSV</strong><br><span class="sub-line">e importe no GTplan</span></span></li>
             </ol>
           </td>

@@ -83,11 +83,11 @@ export class AdminModalController {
       btn.setAttribute('aria-selected', String(active));
     });
     const titles = {
-      motives: 'Revisão de Motivos por Cliente',
-      rules: 'Prazos de Entrega & Feriados',
-      depara: 'De-Para Customizado & Frases Padrão',
-      bases: 'Importar Bases & Backup',
-      explorer: 'Consultar Bases Cadastradas'
+      motives: 'Motivos por cliente',
+      rules: 'Prazos e feriados',
+      depara: 'Vínculos de itens e frases',
+      bases: 'Atualizar bases e backup',
+      explorer: 'Consultar bases'
     };
     if (this.titleEl) this.titleEl.textContent = titles[this.activeTab] || 'Configurações';
 
@@ -127,10 +127,10 @@ export class AdminModalController {
     const todayShort = formatShortBRDate(todayUtc());
     const statusBadge = {
       confirmed: '<span class="chip chip-success">Confirmado</span>',
-      exact: '<span class="chip chip-success">Exato</span>',
-      review: '<span class="chip chip-warn">Revisar (Duplicado)</span>',
-      suggested: '<span class="chip chip-info">Sugerido (Revisar)</span>',
-      missing: '<span class="chip chip-danger">Ausente</span>'
+      exact: '<span class="chip chip-success">Automático</span>',
+      review: '<span class="chip chip-warn" title="O cliente tem mais de um código para esta situação">Revisar</span>',
+      suggested: '<span class="chip chip-info" title="Escolhido por semelhança de texto">Sugerido</span>',
+      missing: '<span class="chip chip-danger">Sem código</span>'
     };
 
     const clientOptions = [
@@ -143,7 +143,7 @@ export class AdminModalController {
 
     this.bodyEl.innerHTML = `
       <div class="callout">
-        <strong>Como funciona a Revisão de Motivos:</strong> Para cada <strong>Situação</strong> abaixo, o motor verifica o pedido no TOTVS/CSV, gera a <strong>Observação</strong> padrão (sempre com o prefixo da data atual <span class="mono">${todayShort}:</span>) e aplica o código de <strong>Motivo</strong> do respectivo cliente. Alterações feitas aqui são salvas no IndexedDB local para os próximos envios.
+        <strong>O que é esta tela:</strong> cada cliente do GTplan tem a própria lista de códigos de motivo. Aqui você confere qual código o app vai usar em cada situação (ex.: <em>Pedido entregue</em>). Linhas marcadas <strong>Revisar</strong> são as que o cliente tem mais de um código parecido — escolha o certo uma vez e ele fica salvo para as próximas importações. A observação sempre começa com a data de hoje (<span class="mono">${todayShort}:</span>).
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -192,7 +192,6 @@ export class AdminModalController {
                           </td>
                           <td style="min-width:160px;">
                             <strong>${esc(item.label)}</strong>
-                            <div class="sub-line mono">${esc(item.slug)}</div>
                           </td>
                           <td style="min-width:270px;max-width:340px;">
                             <div><strong>Quando:</strong> ${esc(item.trigger)}</div>
@@ -266,12 +265,13 @@ export class AdminModalController {
       <div style="border:1px solid var(--border-soft);padding:12px;border-radius:8px;background:var(--surface-alt);">
         <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;">
           <input type="checkbox" id="chk-legacy-exc" ${rules.enableLegacyExceptions !== false ? 'checked' : ''} />
-          Manter exceções legadas padrão (Santa Helena: +2 dias úteis no SLA; Santa Joana: texto curto em OC fora do leadtime)
+          Manter as regras antigas da planilha (Santa Helena: +2 dias úteis no prazo; Santa Joana: texto curto quando a OC está fora do leadtime)
         </label>
       </div>
 
       <div>
-        <strong>Tempo de entrega e/ou agendamento por Cliente ou Estabelecimento</strong>
+        <strong>Prazo de entrega diferente para um cliente ou estabelecimento</strong>
+        <div class="sub-line">O prazo normal vem da aba Hospitais (ou do estado: SP 1 dia útil, RJ 2…). Só cadastre aqui as exceções.</div>
         <form id="form-add-rule" class="form-grid" style="margin-top:8px;">
           <div class="form-field">
             <label>Escopo</label>
@@ -281,19 +281,19 @@ export class AdminModalController {
             </select>
           </div>
           <div class="form-field">
-            <label>Chave (Ex: H PRO CARDIACO ou 33)</label>
+            <label>Nome do estabelecimento ou Cód. Cliente</label>
             <input name="key" required placeholder="Nome do estab. ou código" />
           </div>
           <div class="form-field">
-            <label>SLA Fixo (opcional)</label>
+            <label>Prazo fixo em dias úteis (opcional)</label>
             <input name="slaOverride" type="number" min="1" placeholder="Ex: 3" />
           </div>
           <div class="form-field">
-            <label>SLA Extra (+/- dias)</label>
+            <label>Somar/subtrair dias úteis</label>
             <input name="extraSla" type="number" placeholder="Ex: 2" />
           </div>
           <div class="form-field">
-            <label>Obs curta fora LT?</label>
+            <label>Texto curto fora do leadtime?</label>
             <select name="shortForaLtObs">
               <option value="">Padrão</option>
               <option value="true">Sim (texto curto)</option>
@@ -306,7 +306,7 @@ export class AdminModalController {
         <div style="margin-top:10px;max-height:170px;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;">
           <table class="triage-table">
             <thead>
-              <tr><th>Tipo</th><th>Chave</th><th>SLA Fixo</th><th>Extra Dias</th><th>Obs Curta</th><th></th></tr>
+              <tr><th>Tipo</th><th>Cliente / Estab.</th><th>Prazo fixo</th><th>+/- dias</th><th>Texto curto</th><th></th></tr>
             </thead>
             <tbody>
               ${
@@ -323,7 +323,7 @@ export class AdminModalController {
       </div>
 
       <div>
-        <strong>Calendário de Feriados (ignorados no cálculo de dias úteis WORKDAY)</strong>
+        <strong>Feriados</strong> <span class="sub-line">(não contam como dia útil no cálculo da previsão de entrega)</span>
         <form id="form-add-holiday" class="combo-row" style="margin-top:8px;max-width:340px;">
           <input type="date" name="date" class="cell-input" required />
           <button type="submit" class="btn btn-primary">+ Feriado</button>
@@ -403,15 +403,17 @@ export class AdminModalController {
 
     this.bodyEl.innerHTML = `
       <div class="callout">
-        <strong>Onde estes dados ficam salvos?</strong> Todos os vínculos de <strong>De-Para Customizado</strong>, <strong>Frases Padrão</strong>, <strong>Revisões de Motivos</strong> e <strong>Tempo de entrega/agendamento</strong> são gravados automaticamente no banco local do seu navegador (<strong>IndexedDB</strong> → banco <span class="mono">gtplan_followup_db</span>, store <span class="mono">kv_store</span>, chave <span class="mono">app_config_v1</span>) e já ficam prontos para migração futura para banco de dados via <span class="mono">repository.js</span>. Para copiar para outro PC, use <strong>Exportar Backup JSON</strong> na aba <em>Importar Bases &amp; Backup</em>.
+        <strong>Para que serve:</strong> quando um item do GTplan aparece como <em>Sem De-Para</em>, informe aqui qual é o código CBS (TOTVS) dele.
+        O vínculo vale nas próximas importações. Tudo fica salvo neste navegador — para levar para outro computador use
+        <em>Atualizar bases &amp; backup → Baixar backup</em>.
       </div>
 
       <div>
-        <strong>De-Para Customizado (Vínculo Rápido de Itens fora da planilha todasBases)</strong>
+        <strong>Vincular item do GTplan a um código CBS</strong>
         <form id="form-add-depara" class="form-grid" style="margin-top:8px;">
           <div class="form-field">
-            <label>Cód. Cliente (opcional)</label>
-            <input name="codCliente" value="${esc(pre.codCliente || '')}" placeholder="Ex: 33 (ou vazio=todos)" />
+            <label>Cód. Cliente (deixe vazio = vale para todos)</label>
+            <input name="codCliente" value="${esc(pre.codCliente || '')}" placeholder="Ex: 113" />
           </div>
           <div class="form-field">
             <label>Cód. Item GTplan *</label>
@@ -426,10 +428,10 @@ export class AdminModalController {
             <input name="codCBS" required placeholder="Ex: 001369" />
           </div>
           <div class="form-field">
-            <label>Multiplicador (Caixa)</label>
+            <label>Unidades por caixa</label>
             <input name="mult" type="number" min="1" value="1" />
           </div>
-          <button type="submit" class="btn btn-primary">+ Salvar Vínculo</button>
+          <button type="submit" class="btn btn-primary">+ Salvar vínculo</button>
         </form>
 
         <div style="margin-top:8px;max-height:180px;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;">
@@ -438,7 +440,7 @@ export class AdminModalController {
             <tbody>
               ${
                 customDePara.length === 0
-                  ? '<tr><td colspan="6" style="text-align:center;color:#64748b;">Nenhum De-Para customizado cadastrado.</td></tr>'
+                  ? '<tr><td colspan="6" style="text-align:center;color:#64748b;">Nenhum vínculo manual ainda. Os itens da planilha todasBases já são reconhecidos automaticamente.</td></tr>'
                   : customDePara
                       .map(
                         (d, idx) => `<tr><td class="mono">${esc(d.codCliente || 'Todos')}</td><td class="mono">${esc(d.codItem)}</td><td>${esc(d.descItem)}</td><td class="mono"><strong>${esc(d.codCBS)}</strong></td><td class="mono">${d.mult}</td><td><button type="button" class="btn btn-xs" data-del-depara="${idx}">Remover</button></td></tr>`
@@ -451,29 +453,30 @@ export class AdminModalController {
       </div>
 
       <div>
-        <strong>Frases Padrão de Observação</strong>
+        <strong>Frases prontas para a Observação</strong>
+        <div class="sub-line">Aparecem no botão <em>Frases padrão</em> de cada linha da tabela. A data de hoje é colocada na frente automaticamente.</div>
         <form id="form-add-frase" class="form-grid" style="margin-top:8px;">
           <div class="form-field" style="grid-column:span 2;">
-            <label>Texto da Frase *</label>
+            <label>Texto da frase *</label>
             <input name="frase" required placeholder="Ex: Pedido aguardando liberação comercial" />
           </div>
           <div class="form-field">
-            <label>Intenção Sugerida (Opcional)</label>
+            <label>Situação (opcional)</label>
             <select name="slug">
-              <option value="">Sem vínculo automático (livre)</option>
-              ${INTENT_SLUGS.map((s) => `<option value="${s.slug}">${s.label} (${s.slug})</option>`).join('')}
+              <option value="">Nenhuma em especial</option>
+              ${INTENT_SLUGS.map((s) => `<option value="${s.slug}">${esc(s.label)}</option>`).join('')}
             </select>
           </div>
-          <button type="submit" class="btn btn-primary">+ Adicionar Frase</button>
+          <button type="submit" class="btn btn-primary">+ Adicionar frase</button>
         </form>
 
         <div style="margin-top:8px;max-height:170px;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;">
           <table class="triage-table">
-            <thead><tr><th>Frase</th><th>Intenção Sugerida</th><th></th></tr></thead>
+            <thead><tr><th>Frase</th><th>Situação</th><th></th></tr></thead>
             <tbody>
               ${frases
                 .map(
-                  (f, idx) => `<tr><td>${esc(f.frase)}</td><td class="mono">${esc(f.slug || '-')}</td><td><button type="button" class="btn btn-xs" data-del-frase="${idx}">Remover</button></td></tr>`
+                  (f, idx) => `<tr><td>${esc(f.frase)}</td><td>${esc(INTENT_SLUGS.find((s) => s.slug === f.slug)?.label || '—')}</td><td><button type="button" class="btn btn-xs" data-del-frase="${idx}">Remover</button></td></tr>`
                 )
                 .join('')}
             </tbody>
@@ -530,34 +533,38 @@ export class AdminModalController {
   _renderBasesBackupTab() {
     const config = this.getConfig();
     this.bodyEl.innerHTML = `
+      <div class="callout">
+        <strong>Normalmente você não precisa mexer aqui.</strong> O app já vem com as bases de itens, hospitais e motivos.
+        Use esta tela só quando cadastrar itens novos no <span class="mono">importador_gtplan.xlsm</span> ou quando o GTplan mudar a lista de motivos.
+      </div>
       <div class="sub-line">
-        Estatísticas carregadas na memória/IndexedDB:
-        <strong>${config.todasBases.length}</strong> itens em todasBases,
-        <strong>${config.motivos.length}</strong> motivos multi-cliente,
+        Em uso agora: <strong>${config.todasBases.length.toLocaleString('pt-BR')}</strong> itens De-Para,
+        <strong>${config.motivos.length.toLocaleString('pt-BR')}</strong> motivos de clientes,
         <strong>${config.hospitais.length}</strong> hospitais,
-        <strong>${config.customDePara.length}</strong> De-Paras customizados.
+        <strong>${config.customDePara.length}</strong> vínculos manuais.
+        ${config.basesImportedAt ? `Bases importadas por você em ${esc(new Date(config.basesImportedAt).toLocaleString('pt-BR'))}.` : 'Usando as bases que vêm com o app.'}
       </div>
 
       <div class="ingest-grid">
         <div class="dropzone" style="cursor:default;flex-direction:column;align-items:flex-start;">
-          <div class="dropzone-title">Atualizar Dicionário de Motivos (CSV)</div>
-          <div class="dropzone-meta">Selecione motivos_follow_up_todos_os_clientes.csv atualizado</div>
-          <input type="file" id="inp-import-motivos" accept=".csv" style="display:block;margin-top:6px;" />
+          <div class="dropzone-title">Atualizar itens e hospitais</div>
+          <div class="dropzone-meta">Selecione o <span class="mono">importador_gtplan.xlsm</span> (lê as abas todasBases e Hospitais)</div>
+          <input type="file" id="inp-import-xlsm" accept=".xlsm,.xlsx" style="display:block;margin-top:6px;" />
         </div>
         <div class="dropzone" style="cursor:default;flex-direction:column;align-items:flex-start;">
-          <div class="dropzone-title">Atualizar Bases do importador_gtplan.xlsm</div>
-          <div class="dropzone-meta">Lê todasBases, Hospitais e leadtime diretamente no navegador</div>
-          <input type="file" id="inp-import-xlsm" accept=".xlsm,.xlsx" style="display:block;margin-top:6px;" />
+          <div class="dropzone-title">Atualizar lista de motivos dos clientes</div>
+          <div class="dropzone-meta">Selecione o <span class="mono">motivos_follow_up_todos_os_clientes.csv</span></div>
+          <input type="file" id="inp-import-motivos" accept=".csv" style="display:block;margin-top:6px;" />
         </div>
       </div>
 
       <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:8px;border-top:1px solid var(--border-soft);">
-        <button type="button" class="btn btn-primary" id="btn-export-backup">Exportar Backup JSON</button>
+        <button type="button" class="btn btn-primary" id="btn-export-backup" title="Salva vínculos, frases, motivos revisados e prazos num arquivo para levar a outro computador">Baixar backup</button>
         <label class="btn" style="cursor:pointer;">
-          Restaurar Backup JSON
+          Carregar backup
           <input type="file" id="inp-import-backup" accept=".json" style="display:none;" />
         </label>
-        <button type="button" class="btn btn-danger-ghost" id="btn-reset-seed" style="margin-left:auto;">Restaurar Dados de Fábrica…</button>
+        <button type="button" class="btn btn-danger-ghost" id="btn-reset-seed" style="margin-left:auto;">Voltar ao padrão de fábrica…</button>
       </div>
     `;
 
@@ -583,6 +590,7 @@ export class AdminModalController {
         return;
       }
       config.motivos = nextMotivos;
+      config.basesImportedAt = new Date().toISOString();
       await this.onConfigChanged(config, true);
       this.showToast(`${nextMotivos.length} motivos importados e salvos!`);
       this.render();
@@ -591,39 +599,63 @@ export class AdminModalController {
     this.bodyEl.querySelector('#inp-import-xlsm').addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const sheetsRaw = await readWorkbookSheets(buf, ['todasBases', 'Hospitais']);
+      let sheetsRaw;
+      try {
+        sheetsRaw = await readWorkbookSheets(new Uint8Array(await file.arrayBuffer()), ['todasBases', 'Hospitais']);
+      } catch (err) {
+        this.showToast(`Erro ao ler ${file.name}: ${err.message}`, 'error');
+        return;
+      }
+      // Lê colunas pelo nome, ignorando acentos/maiúsculas/espaços ("Cód Cliente" = "COD CLIENTE")
+      const pick = (row, ...names) => {
+        const wanted = names.map(normalizeText);
+        for (const [k, v] of Object.entries(row)) {
+          if (wanted.includes(normalizeText(k)) && String(v ?? '').trim() !== '') return String(v).trim();
+        }
+        return '';
+      };
+      let nItens = 0;
+      let nHosp = 0;
       if (sheetsRaw.todasBases?.length) {
-        const objs = rowsToObjects(sheetsRaw.todasBases, 1);
-        const mapped = objs
-          .filter((r) => r['Cod CBS'])
+        const mapped = rowsToObjects(sheetsRaw.todasBases, 1)
+          .filter((r) => pick(r, 'Cod CBS'))
           .map((r) => ({
-            codSap: r['Cod Item C SAP'] || '',
-            codItem: r['Cod Item C Gtplan'] || '',
-            descItem: r['Desc Item C'] || '',
-            codCBS: String(r['Cod CBS']).trim().padStart(6, '0'),
-            descCBS: r['Desc CBS'] || '',
-            mult: Math.max(1, Number(r['Multiplicador']) || 1)
+            codSap: pick(r, 'Cod Item C SAP'),
+            codItem: pick(r, 'Cod Item C Gtplan'),
+            descItem: pick(r, 'Desc Item C'),
+            codCBS: pick(r, 'Cod CBS').padStart(6, '0'),
+            descCBS: pick(r, 'Descrição CBS', 'Desc CBS'),
+            mult: Math.max(1, Number(pick(r, 'Multiplicador')) || 1)
           }));
-        if (mapped.length) config.todasBases = mapped;
+        if (mapped.length) {
+          config.todasBases = mapped;
+          nItens = mapped.length;
+        }
       }
       if (sheetsRaw.Hospitais?.length) {
-        const hospObjs = rowsToObjects(sheetsRaw.Hospitais, 1);
-        const mappedH = hospObjs
-          .filter((r) => r['ESTAB'] || r['NOME'])
+        const mappedH = rowsToObjects(sheetsRaw.Hospitais, 1)
           .map((r) => ({
-            estab: r['ESTAB'] || '',
-            codCliente: r['CLIENTE'] || '',
-            loja: r['LOJA'] || '',
-            concat2: r['Concat2'] || '',
-            nome: r['NOME'] || '',
-            uf: r['UF'] || '',
-            sla: Math.max(1, Number(r['SLA']) || 1)
-          }));
-        if (mappedH.length) config.hospitais = mappedH;
+            estab: pick(r, 'Estab'),
+            codCliente: pick(r, 'Cód Cliente', 'Cliente'),
+            loja: pick(r, 'Loja'),
+            concat2: pick(r, 'Concatenar2', 'Concat2'),
+            nome: pick(r, 'Nome Fantasia', 'Nome'),
+            uf: pick(r, 'UF').toUpperCase(),
+            sla: Math.max(1, Number(pick(r, 'SLA')) || 1)
+          }))
+          .filter((h) => h.estab || h.nome);
+        if (mappedH.length) {
+          config.hospitais = mappedH;
+          nHosp = mappedH.length;
+        }
       }
+      if (!nItens && !nHosp) {
+        this.showToast(`Não encontrei as abas todasBases/Hospitais em ${file.name}.`, 'error');
+        return;
+      }
+      config.basesImportedAt = new Date().toISOString();
       await this.onConfigChanged(config, true);
-      this.showToast('Bases do XLSM atualizadas com sucesso!');
+      this.showToast(`Bases atualizadas: ${nItens.toLocaleString('pt-BR')} itens e ${nHosp} hospitais.`, 'success');
       this.render();
     });
 

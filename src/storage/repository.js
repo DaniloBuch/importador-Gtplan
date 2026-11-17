@@ -9,12 +9,31 @@ const DB_VERSION = 1;
 const STORE_NAME = 'kv_store';
 const STATE_KEY = 'app_config_v1';
 
+/** Bases de referência embutidas no app. Só ficam salvas no navegador se o usuário importar versões novas. */
+const BASE_KEYS = ['todasBases', 'hospitais', 'motivos', 'motiveSlugMap'];
+
+/**
+ * Frases podem vir como texto puro (seed) ou objeto { frase, slug }. Normaliza sempre para objeto.
+ */
+export function normalizeFrases(list) {
+  const out = [];
+  const seen = new Set();
+  for (const f of list || []) {
+    const frase = String(typeof f === 'string' ? f : f?.frase ?? '').trim();
+    if (!frase || seen.has(frase.toLowerCase())) continue;
+    seen.add(frase.toLowerCase());
+    out.push({ frase, descSimples: frase, slug: (typeof f === 'object' && f?.slug) || '' });
+  }
+  return out;
+}
+
 export function createDefaultConfig(seedData) {
   return {
     version: 1,
+    basesImportedAt: null, // preenchido só quando o usuário importa bases novas (XLSM / CSV de motivos)
     todasBases: seedData.todasBases || [],
     hospitais: seedData.hospitais || [],
-    frases: seedData.frases || [],
+    frases: normalizeFrases(seedData.frases),
     motiveSlugMap: seedData.motiveSlugMap || [],
     motivos: seedData.motivos || [],
     leadtimeUF: seedData.leadtimeUF || { SP: 1, RJ: 2, DF: 4, PE: 8, CE: 8, RN: 10, PR: 2 },
@@ -85,7 +104,14 @@ export class IndexedDbRepository {
         req.onerror = () => reject(req.error);
       });
       if (saved && saved.version === 1) {
-        return { ...createDefaultConfig(this.seedData), ...saved };
+        const merged = { ...createDefaultConfig(this.seedData), ...saved };
+        // Versões antigas gravavam uma cópia das bases embutidas e ela "congelava" para sempre.
+        // Agora só mantemos bases salvas se o usuário as importou explicitamente.
+        if (!saved.basesImportedAt) {
+          for (const k of BASE_KEYS) merged[k] = this.seedData[k] || [];
+        }
+        merged.frases = normalizeFrases(merged.frases);
+        return merged;
       }
       const initial = createDefaultConfig(this.seedData);
       await this.save(initial);
